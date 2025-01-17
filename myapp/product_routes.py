@@ -284,6 +284,7 @@ def create_order():
     delivery_details = data.get('delivery_details', {})
     total_price = data.get('total_price', 0)
 
+    # Check if cart or delivery details are missing
     if not cart or not delivery_details:
         return jsonify({'success': False, 'message': 'Cart or delivery details are missing.'}), 400
 
@@ -293,6 +294,7 @@ def create_order():
     phone = delivery_details.get('phone')
     location = delivery_details.get('location')
 
+    # Validate required delivery details
     if not all([name, phone, location]):
         return jsonify({'success': False, 'message': 'All delivery details are required.'}), 400
 
@@ -307,7 +309,7 @@ def create_order():
         payment_status='Pending'  # Initial status
     )
     db.session.add(order)
-    db.session.commit()
+    db.session.commit()  # Commit to generate the order ID
 
     # Add each item as an OrderItem linked to the Order
     order_items = []
@@ -315,19 +317,23 @@ def create_order():
         variant_id = item.get('variant_id')
         quantity = item.get('quantity', 1)
 
+        # Check if variant_id is provided
         if not variant_id:
             return jsonify({'success': False, 'message': 'Variant ID is required for each cart item.'}), 400
 
+        # Fetch product variant from the database
         variant = ProductVariant.query.get(variant_id)
         if not variant:
             return jsonify({'success': False, 'message': f"Variant with ID {variant_id} not found."}), 404
 
+        # Check if stock is available
         if quantity > variant.stock:
             return jsonify({'success': False, 'message': f"Quantity for variant ID {variant_id} exceeds stock."}), 400
 
-        # Deduct stock
+        # Deduct stock from the product variant
         variant.stock -= quantity
 
+        # Create OrderItem instance
         order_item = OrderItem(
             order_id=order.id,
             product_variant_id=variant.id,
@@ -338,8 +344,12 @@ def create_order():
         )
         order_items.append(order_item)
 
+    # Bulk save order items and commit to the database
     db.session.bulk_save_objects(order_items)
     db.session.commit()
+
+    return jsonify({'success': True, 'order_id': order.id}), 201
+
 
     # Initiate M-Pesa payment if required
     # Uncomment the following lines if you want to initiate payment immediately
