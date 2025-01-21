@@ -7,7 +7,7 @@ import json
 import requests
 import base64
 import os
-
+from requests.auth import HTTPBasicAuth
 load_dotenv()
 
 product_bp = Blueprint('products', __name__)
@@ -361,193 +361,91 @@ def create_order():
     # else:
     #     return jsonify({'success': False, 'message': 'Payment initiation failed.', 'details': payment_result}), 500
 
-    return jsonify({'success': True, 'order_id': order.id}), 201
+    # return jsonify({'success': True, 'order_id': order.id}), 201
 
-# Function to initiate M-Pesa STK Push (No changes needed unless modifying behavior)
-def initiate_mpesa_payment(phone, total_price):
-    shortcode = str(174379)
-    consumer_key = os.getenv('MPESA_CONSUMER_KEY')
-    consumer_secret = os.getenv('MPESA_CONSUMER_SECRET')
-    environment = os.getenv('MPESA_ENVIRONMENT', 'sandbox')
-    
-    recipient_phone_number = os.getenv('MY_PHONE_NUMBER')  # Ensure this is set in your environment variables
 
-    # Step 1: Get access token
-    access_token = get_mpesa_access_token()
-    print("Access Token:", access_token)  # Debugging access token
-    if not access_token:
-        return {'success': False, 'message': 'Failed to get access token.'}
-
-    # Step 2: Prepare the password and timestamp for the request
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    password = base64.b64encode((shortcode + timestamp).encode()).decode('utf-8')
-
-    # Step 3: Prepare STK Push request body
-    stk_push_url = f'https://{environment}.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'
-    }
-    body = {
-        "BusinessShortCode": shortcode,
-        "Password": password,
-        "Timestamp": timestamp,
-        "TransactionType": "CustomerPayBillOnline", 
-        "Amount": total_price,
-        "PartyA": phone,  
-        "PartyB": shortcode,  
-        "PhoneNumber": phone, 
-        "CallBackURL": "https://yourdomain.com/mpesa/callback",  # Update with your actual callback URL
-        "AccountReference": "Order Payment",
-        "TransactionDesc": "Payment for Order"
-    }
-
-    # Step 4: Send the STK Push request
-    response = requests.post(stk_push_url, json=body, headers=headers)
-    response_data = response.json()
-    print("STK Push Response:", response_data)  # Debugging response data
-
-    if response.status_code == 200 and response_data.get('ResponseCode') == '0':
-        return {
-            'success': True,
-            'message': 'STK Push sent successfully',
-            'checkout_request_id': response_data.get('CheckoutRequestID')
-        }
-    else:
-        return {
-            'success': False,
-            'message': 'STK Push request failed.',
-            'details': response_data
-        }
-
-# Function to get M-Pesa access token (No changes needed unless modifying behavior)
 def get_mpesa_access_token():
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-    consumer_key = os.getenv("MPESA_CONSUMER_KEY")
-    consumer_secret = os.getenv("MPESA_CONSUMER_SECRET")
+    consumer_key = 'Pg578muqGU0hxW8gzaRGkczrGyquSOOQLd4XvnWUNBqHnsjQ'
+    consumer_secret = 'UDQHV6hY2cpo5JGQhfBKZOgXLSHNX6jNRd6UPB5ZmxU7QfhcAG9YIZvCRAptXVAw'
+    api_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+    response = requests.get(api_url, auth=HTTPBasicAuth(consumer_key, consumer_secret))
+    print("Access Token Response:", response.text)  # Debugging line
+    token = response.json().get('access_token')
+    if not token:
+        raise Exception("Failed to obtain access token")
+    
+    return token
+    
 
-    if not consumer_key or not consumer_secret:
-        print("Error: Missing M-Pesa consumer key or secret.")
-        return None
-
-    # Encode key and secret to base64
-    auth_string = f"{consumer_key}:{consumer_secret}"
-    auth_header = base64.b64encode(auth_string.encode()).decode()
-
-    headers = {
-        "Authorization": f"Basic {auth_header}",
-        "Content-Type": "application/json"
-    }
-
+# Function to initiate payment
+def initiate_payment(phone_number, amount):
     try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json().get("access_token")
-        else:
-            print("Response Status:", response.status_code)
-            print("Response Body:", response.text)
-            return None
-    except requests.RequestException as e:
-        print("Request error:", e)
-        return None
+        access_token = get_mpesa_access_token()
+        api_url = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        short_code = '8904818'
+        passkey = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+        password = base64.b64encode(f'{short_code}{passkey}{timestamp}'.encode()).decode()
 
-# MPESA callback route to handle payment responses
-@product_bp.route('/mpesa/callback', methods=['POST'])
-def mpesa_callback():
-    data = request.json
-    result_code = data.get('Body', {}).get('stkCallback', {}).get('ResultCode')
-    result_desc = data.get('Body', {}).get('stkCallback', {}).get('ResultDesc')
-    checkout_request_id = data.get('Body', {}).get('stkCallback', {}).get('CheckoutRequestID')
-    
-    # Retrieve order by checkout_request_id if stored in Order table
-    order = Order.query.filter_by(checkout_request_id=checkout_request_id).first()
+        # Ensure the phone number is in the correct format
+        phone_number = phone_number.strip()
+        if phone_number.startswith("0"):
+            phone_number = "254" + phone_number[1:]
+        elif not phone_number.startswith("254"):
+            return {'error': 'Invalid phone number format'}
 
-    if order:
-        if result_code == 0:
-            # Payment successful
-            order.payment_status = 'Completed'
-            db.session.commit()
-            return jsonify({'success': True, 'message': 'Payment successful.'})
-        else:
-            # Payment failed
-            order.payment_status = 'Failed'
-            db.session.commit()
-            return jsonify({'success': False, 'message': f'Payment failed: {result_desc}.'})
-    else:
-        return jsonify({'success': False, 'message': 'Order not found.'}), 404
-
-# Manage categories (no changes needed)
-@product_bp.route('/categories', methods=['GET', 'POST'])
-def manage_categories():
-    if request.method == 'GET':
-        # Fetch all categories
-        categories = Category.query.all()
-        return jsonify([{
-            'id': category.id,
-            'name': category.name
-        } for category in categories]), 200
-
-    elif request.method == 'POST':
-        # Add a new category
-        if not request.json or not 'name' in request.json:
-            return jsonify({'error': 'Category name is required'}), 400
-
-        category_name = request.json['name']
-        new_category = Category(name=category_name)
-
-        try:
-            db.session.add(new_category)
-            db.session.commit()
-            return jsonify({'message': 'Category added successfully'}), 201
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'error': str(e)}), 500
-
-# GET all orders (admin)
-@product_bp.route('/getorders', methods=['GET'])
-def get_orders():
-    orders = Order.query.all()
-    orders_data = [
-        {
-            "id": order.id,
-            "user": {
-                "username": order.user.username if order.user else "Guest",
-                "email": order.user.email if order.user else order.email  # Fallback to order email if no user is linked
-            },
-            "name": order.name,
-            "phone": order.phone,
-            "location": order.location,
-            "total_price": order.total_price,
-            "order_date": order.created_at.isoformat(),
-            "payment_status": order.payment_status,
-            "order_items": [
-                {
-                    "product_name": item.product_variant.product.name,
-                    "description": item.product_variant.product.description,
-                    "quantity": item.quantity,
-                    "unit_price": item.unit_price,
-                    "size": item.size,
-                    "edition": item.edition,
-                    "total_item_price": item.quantity * item.unit_price
-                }
-                for item in order.items 
-            ]
+        payload = {
+            'BusinessShortCode': short_code,
+            'Password': password,
+            'Timestamp': timestamp,
+            'TransactionType': 'CustomerPayBillOnline',
+            'Amount': amount,
+            'PartyA': phone_number,
+            'PartyB': short_code,
+            'PhoneNumber': phone_number,
+            'CallBackURL': 'https://6da8-105-163-156-47.ngrok-free.app/callback',  # Update this with your callback URL
+            'AccountReference': phone_number,
+            'TransactionDesc': 'Payment for service',
         }
-        for order in orders
-    ]
-    return jsonify(orders_data)
+
+        response = requests.post(api_url, headers=headers, json=payload)
+        response.raise_for_status()  # This will raise an exception if the status code is not 2xx
+
+        if 'CheckoutRequestID' not in response.json():
+            return {'error': 'Failed to initiate payment', 'details': response.json()}
+
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        return {'error': 'Failed to initiate payment', 'details': str(e)}
 
 
+# Route to handle payment initiation
+# Route to handle payment initiation
+@product_bp.route('/pay', methods=['POST'])
+def pay():
+    try:
+        # Get data from the request body
+        data = request.get_json()
 
-# Additional route to fetch variants for a specific product
-@product_bp.route('/products/<int:id>/variants', methods=['GET'])
-def get_product_variants(id):
-    product = Product.query.get_or_404(id)
-    variants = [{
-        "id": variant.id,
-        "size": variant.size,
-        "edition": variant.edition,
-        "stock": variant.stock
-    } for variant in product.variants]
-    
-    return jsonify(variants), 200
+        # Ensure that both phone_number and amount are provided
+        phone_number = data.get('phone_number')
+        amount = data.get('amount')
+
+        if not phone_number or not amount:
+            return jsonify({'error': 'Phone number and amount are required'}), 400
+
+        # Initiate payment
+        response = initiate_payment(phone_number, amount)
+
+        # Check if the response from initiate_payment contains 'CheckoutRequestID'
+        if 'CheckoutRequestID' not in response:
+            return jsonify({'error': 'Failed to initiate payment', 'details': response}), 500
+
+        # Return response containing CheckoutRequestID
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"Error in /pay route: {str(e)}")  # Debugging line
+        return jsonify({'error': 'Internal server error'}), 500
