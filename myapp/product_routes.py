@@ -215,7 +215,7 @@ def delete_product(id):
     return jsonify({"message": "Product and its variants deleted successfully!"})
 
 # Count products by category
-@product_bp.route('/products/count-by-category', methods=['GET'])
+@product_bp.route('/categories', methods=['GET'])
 def count_products_by_category():
     categories = db.session.query(
         Category.name,
@@ -230,7 +230,7 @@ def count_products_by_category():
     } for category in categories])
 
 # Get products by category with variants
-@product_bp.route('/products/by-category/<int:category_id>', methods=['GET'])
+@product_bp.route('/categories/<int:category_id>', methods=['GET'])
 def get_products_by_category(category_id):
     # Add query parameters for limit and sort
     limit = request.args.get('limit', default=6, type=int)
@@ -265,6 +265,19 @@ def get_products_by_category(category_id):
         })
 
     return jsonify(products_data)
+
+@product_bp.route('/categories/<int:id>', methods=['DELETE'])
+def delete_category(id):
+    # Retrieve the category using the correct model
+    category = Category.query.get_or_404(id)
+
+    # Delete the category
+    db.session.delete(category)
+    db.session.commit()
+
+    return jsonify({"message": "Category deleted successfully!"})
+
+
 
 # POST image upload (no changes needed if already functional)
 @product_bp.route('/upload', methods=['POST'])
