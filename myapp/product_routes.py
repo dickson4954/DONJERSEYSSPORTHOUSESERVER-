@@ -289,6 +289,67 @@ def upload_image_route():
             return jsonify({'image_url': result['url']}), 200
     return jsonify({"error": "Image upload failed"}), 500
 
+
+# GET all orders
+@product_bp.route('/orders', methods=['GET'])
+def get_orders():
+    orders = Order.query.all()
+    
+    orders_data = []
+    for order in orders:
+        order_items = [{
+            "id": item.id,
+            "product_variant_id": item.product_variant_id,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "size": item.size,
+            "edition": item.edition
+        } for item in order.items]
+        
+        orders_data.append({
+            "id": order.id,
+            "user_id": order.user_id,
+            "name": order.name,
+            "email": order.email,
+            "phone": order.phone,
+            "location": order.location,
+            "total_price": order.total_price,
+            "payment_status": order.payment_status,
+            "created_at": order.created_at.isoformat(),
+            "items": order_items
+        })
+    
+    return jsonify(orders_data)
+
+# GET a single order by ID
+@product_bp.route('/orders/<int:id>', methods=['GET'])
+def get_order_by_id(id):
+    order = Order.query.get_or_404(id)
+
+    order_items = [{
+        "id": item.id,
+        "product_variant_id": item.product_variant_id,
+        "quantity": item.quantity,
+        "unit_price": item.unit_price,
+        "size": item.size,
+        "edition": item.edition
+    } for item in order.items]
+
+    order_data = {
+        "id": order.id,
+        "user_id": order.user_id,
+        "name": order.name,
+        "email": order.email,
+        "phone": order.phone,
+        "location": order.location,
+        "total_price": order.total_price,
+        "payment_status": order.payment_status,
+        "created_at": order.created_at.isoformat(),
+        "items": order_items
+    }
+
+    return jsonify(order_data)
+
 # POST a new order with variants
 @product_bp.route('/orders', methods=['POST'])
 def create_order():
