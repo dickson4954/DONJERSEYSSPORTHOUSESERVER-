@@ -277,8 +277,6 @@ def delete_category(id):
 
     return jsonify({"message": "Category deleted successfully!"})
 
-
-
 # POST image upload (no changes needed if already functional)
 @product_bp.route('/upload', methods=['POST'])
 def upload_image_route():  
