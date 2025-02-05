@@ -45,6 +45,7 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
     image_url = db.Column(db.String(255), nullable=True)
+    size_type = db.Column(db.String(50), nullable=False, default="standard")  # "standard" (S, M, L) or "number" (38, 39, 40)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     variants = db.relationship('ProductVariant', backref='product', lazy=True)
@@ -57,11 +58,11 @@ class Product(db.Model):
             "price": self.price,
             "category_id": self.category_id,
             "image_url": self.image_url,
+            "size_type": self.size_type,
             "created_at": self.created_at.isoformat(),
             "stock": sum(variant.stock for variant in self.variants),
-            "sizes": list(set(variant.size for variant in self.variants)),
+            "sizes": list(set(variant.size for variant in self.variants)),  # Unique sizes list
             "variants": [variant.to_dict() for variant in self.variants]
-            
         }
 
 class ProductVariant(db.Model):
@@ -69,11 +70,11 @@ class ProductVariant(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
-    size = db.Column(db.String(20), nullable=False)
+    size = db.Column(db.String(20), nullable=False)  # Supports both number & standard sizes
     edition = db.Column(db.String(50), nullable=False)
     stock = db.Column(db.Integer, nullable=False)
-    badge = db.Column(db.String(50), nullable=True)  # New field for badge type
-    font_type = db.Column(db.String(50), nullable=True)  # New field for font type
+    badge = db.Column(db.String(50), nullable=True)  # Optional field for badge type
+    font_type = db.Column(db.String(50), nullable=True)  # Optional field for font type
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -86,6 +87,7 @@ class ProductVariant(db.Model):
             "badge": self.badge,
             "font_type": self.font_type
         }
+
     
 class Order(db.Model):
     __tablename__ = 'orders'

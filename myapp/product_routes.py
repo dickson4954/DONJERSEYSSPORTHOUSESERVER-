@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, abort
+from flask import Flask, Blueprint, jsonify, request, abort
 from .models import Product, Category, Order, OrderItem, ProductVariant, db
 from .utils import upload_image
 from datetime import datetime
@@ -8,9 +8,23 @@ import requests
 import base64
 import os
 from requests.auth import HTTPBasicAuth
+from flask_cors import CORS
+from flask import send_from_directory
+from werkzeug.utils import secure_filename
+
+
+
 load_dotenv()
 
+# Initialize Flask app
+app = Flask(__name__)
+
+# Apply CORS to the app globally
+CORS(app, origins=["http://localhost:3000"])
+
+
 product_bp = Blueprint('products', __name__)
+
 
 # GET all products with variants
 @product_bp.route('/products', methods=['GET'])
@@ -57,12 +71,12 @@ def get_products():
         })
 
     return jsonify(products_data)
-
-# GET a single product by ID with variants
 @product_bp.route('/products/<int:id>', methods=['GET'])
 def get_product(id):
+    # Fetch the product by ID or return 404 if not found
     product = Product.query.get_or_404(id)
     
+    # Extract all variants for this product
     variants = [{
         "id": variant.id,
         "size": variant.size,
@@ -70,6 +84,13 @@ def get_product(id):
         "stock": variant.stock
     } for variant in product.variants]
     
+    # Extract unique editions, properly split if stored as a string
+    editions = list({e.strip() for variant in product.variants for e in variant.edition.split(",")})
+
+    # Debugging - Check what editions contain
+    print("Extracted editions:", editions)
+
+    # Return the product details along with the variants and editions
     return jsonify({
         "id": product.id,
         "name": product.name,
@@ -81,7 +102,8 @@ def get_product(id):
         },
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
-        "variants": variants  # Include variants in the response
+        "variants": variants,
+        "editions": editions  # Fixed editions extraction
     })
 
 # POST a new product with variants
@@ -109,9 +131,10 @@ def add_product():
     # Handle image upload if image_url is not provided
     image_url = data.get('imageUrl')
     if not image_url:
-        image = request.files.get('image')
+        image = request.files.get('image')  # Use request.files for images
         if image:
-            upload_result = upload_image(image)
+            # Process the uploaded image
+            upload_result = upload_image(image)  # Ensure this function accepts image as parameter
             if upload_result and 'url' in upload_result:
                 image_url = upload_result['url']
             else:
@@ -151,6 +174,7 @@ def add_product():
         "product_id": new_product.id
     }), 201
 
+
 # PUT (update) an existing product and its variants
 @product_bp.route('/products/<int:id>', methods=['PUT'])
 def update_product(id):
@@ -164,16 +188,21 @@ def update_product(id):
     product.category_id = data.get('category_id', product.category_id)
 
     # Handle image update
-    if 'imageUrl' in data:
-        product.image_url = data['imageUrl']
-    elif 'image' in request.files:
-        image = request.files.get('image')
+    image_url = data.get('imageUrl')
+    if not image_url:
+        image = request.files.get('image')  # Use request.files for images
         if image:
-            upload_result = upload_image(image)
+            # Process the uploaded image
+            upload_result = upload_image(image)  # Ensure this function accepts image as parameter
             if upload_result and 'url' in upload_result:
-                product.image_url = upload_result['url']
+                image_url = upload_result['url']
             else:
                 return jsonify({"error": "Image upload failed."}), 500
+        else:
+            return jsonify({"error": "'imageUrl' or 'image' file is required."}), 400
+
+    # Update the image URL
+    product.image_url = image_url
 
     # Handle variants update
     variants = data.get('variants')
@@ -205,7 +234,6 @@ def update_product(id):
 
     db.session.commit()
     return jsonify({"message": "Product updated successfully!"})
-
 # DELETE a product and its variants
 @product_bp.route('/products/<int:id>', methods=['DELETE'])
 def delete_product(id):
@@ -276,19 +304,37 @@ def delete_category(id):
     db.session.commit()
 
     return jsonify({"message": "Category deleted successfully!"})
+UPLOAD_FOLDER = os.path.abspath('./uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# POST image upload (no changes needed if already functional)
 @product_bp.route('/upload', methods=['POST'])
-def upload_image_route():  
-    image = request.files.get('file')
-    if image:
-        result = upload_image(image)
-        if result and 'url' in result:
-            return jsonify({'image_url': result['url']}), 200
-    return jsonify({"error": "Image upload failed"}), 500
+def upload_image():
+    print("Upload route hit")  # Log when the route is accessed
+    try:
+        if 'file' not in request.files:
+            print("No file part in the request")
+            return jsonify({"error": "No file part in the request"}), 400
+
+        image = request.files['file']
+        if image.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        filename = secure_filename(image.filename)
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        image.save(file_path)
+
+        image_url = f'http://localhost:5000/uploads/{filename}'
+        return jsonify({"image_url": image_url})  # Return the URL of the uploaded image
+
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+@product_bp.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
-# GET all orders
+
 @product_bp.route('/orders', methods=['GET'])
 def get_orders():
     orders = Order.query.all()
