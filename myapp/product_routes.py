@@ -567,3 +567,4 @@ def pay():
     except Exception as e:
         print(f"Error in /pay route: {str(e)}")  # Debugging line
         return jsonify({'error': 'Internal server error'}), 500
+app.register_blueprint(product_bp)  # REGISTER BLUEPRINT HERE
