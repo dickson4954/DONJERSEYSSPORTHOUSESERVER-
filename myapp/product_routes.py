@@ -1,5 +1,7 @@
 from flask import Flask, Blueprint, jsonify, request, abort
-from .models import Product, Category, Order, OrderItem, ProductVariant, db
+from myapp.models import Product, Category, Order, OrderItem, ProductVariant, db
+
+
 from .utils import upload_image
 from datetime import datetime
 from dotenv import load_dotenv
@@ -568,3 +570,6 @@ def pay():
         print(f"Error in /pay route: {str(e)}")  # Debugging line
         return jsonify({'error': 'Internal server error'}), 500
 app.register_blueprint(product_bp)  # REGISTER BLUEPRINT HERE
+
+if __name__ == "__main__":
+    app.run(debug=True)  # Enable debug mode
