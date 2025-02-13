@@ -9,7 +9,10 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', '6ce880509867e095b667acbf863b5a987a647c196ed246a7')
     SQLALCHEMY_DATABASE_URI = "postgresql://don_jersey_app_user:p7qjdBF0lvH1CrlQL4iZ7DtCU6DSEKDy@dpg-cumtood2ng1s739qc4j0-a.oregon-postgres.render.com:5432/don_jersey_app"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
+
+    CLOUDINARY_CLOUD_NAME = 'dfdqp6bdl'
+    CLOUDINARY_API_KEY = '838486655244728'
+    CLOUDINARY_API_SECRET = 'IBzLj9TiA8FK9hlz5jtne2fYclU'
 
     # JWT configurations
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'fb7735a66fa196e5ed0eb045e3f00f12e6722f88b1793840fb273c4b37dc1d5a') 

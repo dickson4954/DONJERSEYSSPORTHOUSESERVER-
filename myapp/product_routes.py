@@ -13,6 +13,8 @@ from requests.auth import HTTPBasicAuth
 from flask_cors import CORS
 from flask import send_from_directory
 from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
 
 
 
@@ -23,6 +25,13 @@ app = Flask(__name__)
 
 # Apply CORS to the app globally
 CORS(app, origins=["http://localhost:3000"])
+
+# cloudinary.config(
+#     cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
+#     api_key=app.config['CLOUDINARY_API_KEY'],
+#     api_secret=app.config['CLOUDINARY_API_SECRET']
+# )
+
 
 
 product_bp = Blueprint('products', __name__)
@@ -301,13 +310,24 @@ def delete_category(id):
     # Retrieve the category using the correct model
     category = Category.query.get_or_404(id)
 
-    # Delete the category
+    # If the category has an associated image, delete it from Cloudinary
+    if category.image_url:  # Assuming `image_url` is the field storing the Cloudinary URL
+        try:
+            # Extract the public ID from the Cloudinary URL
+            public_id = category.image_url.split('/')[-1].split('.')[0]
+
+            # Delete the image from Cloudinary
+            cloudinary.uploader.destroy(public_id)
+        except Exception as e:
+            print(f"Error deleting image from Cloudinary: {str(e)}")
+            return jsonify({"error": "Failed to delete associated image from Cloudinary"}), 500
+
+    # Delete the category from the database
     db.session.delete(category)
     db.session.commit()
 
     return jsonify({"message": "Category deleted successfully!"})
-UPLOAD_FOLDER = os.path.abspath('./uploads')
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @product_bp.route('/upload', methods=['POST'])
 def upload_image():
@@ -321,19 +341,22 @@ def upload_image():
         if image.filename == '':
             return jsonify({"error": "No selected file"}), 400
 
-        filename = secure_filename(image.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        image.save(file_path)
+        # Upload the image to Cloudinary
+        upload_result = cloudinary.uploader.upload(image)
 
-        image_url = f'http://localhost:5000/uploads/{filename}'
+        # Get the secure URL of the uploaded image
+        image_url = upload_result.get('secure_url')
+        if not image_url:
+            return jsonify({"error": "Failed to upload image to Cloudinary"}), 500
+
         return jsonify({"image_url": image_url})  # Return the URL of the uploaded image
 
     except Exception as e:
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
-@product_bp.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+# @product_bp.route('/uploads/<filename>')
+# def uploaded_file(filename):
+#     return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 
