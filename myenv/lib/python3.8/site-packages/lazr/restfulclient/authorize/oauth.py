@@ -24,31 +24,29 @@ try:
     from configparser import ConfigParser as SafeConfigParser
 except ImportError:
     from ConfigParser import SafeConfigParser
+
 import os
 import platform
-import stat
 import socket
+import stat
 
-from oauthlib import oauth1
 import six
-from six.moves.urllib.parse import (
-    parse_qs,
-    urlencode,
-    )
+from oauthlib import oauth1
+from six.moves.urllib.parse import parse_qs, urlencode
 
 from lazr.restfulclient.authorize import HttpAuthorizer
 from lazr.restfulclient.errors import CredentialsFileError
 
 __metaclass__ = type
 __all__ = [
-    'AccessToken',
-    'Consumer',
-    'OAuthAuthorizer',
-    'SystemWideConsumer',
-    ]
+    "AccessToken",
+    "Consumer",
+    "OAuthAuthorizer",
+    "SystemWideConsumer",
+]
 
 
-CREDENTIALS_FILE_VERSION = '1'
+CREDENTIALS_FILE_VERSION = "1"
 
 
 # For compatibility, Consumer and AccessToken are defined using terminology
@@ -56,7 +54,7 @@ CREDENTIALS_FILE_VERSION = '1'
 class Consumer:
     """An OAuth consumer (application)."""
 
-    def __init__(self, key, secret='', application_name=None):
+    def __init__(self, key, secret="", application_name=None):
         """Initialize
 
         :param key: The OAuth consumer key
@@ -74,16 +72,18 @@ class Consumer:
 class AccessToken:
     """An OAuth access token."""
 
-    def __init__(self, key, secret='', context=None):
+    def __init__(self, key, secret="", context=None):
         self.key = key
         self.secret = secret
         self.context = context
 
     def to_string(self):
-        return urlencode([
-            ("oauth_token_secret", self.secret),
-            ("oauth_token", self.key),
-            ])
+        return urlencode(
+            [
+                ("oauth_token_secret", self.secret),
+                ("oauth_token", self.key),
+            ]
+        )
 
     __str__ = to_string
 
@@ -111,9 +111,10 @@ class SystemWideConsumer(Consumer):
     desktop applications. The OAuth consumer key will be derived from
     system information (platform and hostname).
     """
+
     KEY_FORMAT = "System-wide: %s (%s)"
 
-    def __init__(self, application_name, secret=''):
+    def __init__(self, application_name, secret=""):
         """Constructor.
 
         :param application_name: An application name. This will be
@@ -122,7 +123,8 @@ class SystemWideConsumer(Consumer):
             a misfeature, and lazr.restful doesn't expect it.
         """
         super(SystemWideConsumer, self).__init__(
-            self.consumer_key, secret, application_name)
+            self.consumer_key, secret, application_name
+        )
 
     @property
     def consumer_key(self):
@@ -133,26 +135,33 @@ class SystemWideConsumer(Consumer):
         """
         try:
             import distro
+
             distname = distro.name()
         except Exception:
             # This can happen due to various kinds of failures with the data
             # sources used by the distro module.
-            distname = ''
-        if distname == '':
-            distname = platform.system() # (eg. "Windows")
+            distname = ""
+        if distname == "":
+            distname = platform.system()  # (eg. "Windows")
         return self.KEY_FORMAT % (distname, socket.gethostname())
 
 
 class OAuthAuthorizer(HttpAuthorizer):
     """A client that signs every outgoing request with OAuth credentials."""
 
-    def __init__(self, consumer_name=None, consumer_secret='',
-                 access_token=None, oauth_realm="OAuth",
-                 application_name=None):
+    def __init__(
+        self,
+        consumer_name=None,
+        consumer_secret="",
+        access_token=None,
+        oauth_realm="OAuth",
+        application_name=None,
+    ):
         self.consumer = None
         if consumer_name is not None:
             self.consumer = Consumer(
-                consumer_name, consumer_secret, application_name)
+                consumer_name, consumer_secret, application_name
+            )
         self.access_token = access_token
         self.oauth_realm = oauth_realm
 
@@ -165,9 +174,9 @@ class OAuthAuthorizer(HttpAuthorizer):
         params = {}
         if self.consumer is None:
             return params
-        params['oauth_consumer'] = self.consumer.key
+        params["oauth_consumer"] = self.consumer.key
         if self.consumer.application_name is not None:
-            params['application'] =  self.consumer.application_name
+            params["application"] = self.consumer.application_name
         return params
 
     def load(self, readable_file):
@@ -182,22 +191,24 @@ class OAuthAuthorizer(HttpAuthorizer):
         """
         # Attempt to load the access token from the file.
         parser = SafeConfigParser()
-        reader = getattr(parser, 'read_file', parser.readfp)
+        if hasattr(parser, "read_file"):
+            reader = parser.read_file
+        else:
+            reader = parser.readfp
         reader(readable_file)
         # Check the version number and extract the access token and
         # secret.  Then convert these to the appropriate instances.
         if not parser.has_section(CREDENTIALS_FILE_VERSION):
-            raise CredentialsFileError('No configuration for version %s' %
-                                       CREDENTIALS_FILE_VERSION)
-        consumer_key = parser.get(
-            CREDENTIALS_FILE_VERSION, 'consumer_key')
+            raise CredentialsFileError(
+                "No configuration for version %s" % CREDENTIALS_FILE_VERSION
+            )
+        consumer_key = parser.get(CREDENTIALS_FILE_VERSION, "consumer_key")
         consumer_secret = parser.get(
-            CREDENTIALS_FILE_VERSION, 'consumer_secret')
+            CREDENTIALS_FILE_VERSION, "consumer_secret"
+        )
         self.consumer = Consumer(consumer_key, consumer_secret)
-        access_token = parser.get(
-            CREDENTIALS_FILE_VERSION, 'access_token')
-        access_secret = parser.get(
-            CREDENTIALS_FILE_VERSION, 'access_secret')
+        access_token = parser.get(CREDENTIALS_FILE_VERSION, "access_token")
+        access_secret = parser.get(CREDENTIALS_FILE_VERSION, "access_secret")
         self.access_token = AccessToken(access_token, access_secret)
 
     @classmethod
@@ -214,7 +225,7 @@ class OAuthAuthorizer(HttpAuthorizer):
         :rtype: `Credentials`
         """
         credentials = cls()
-        credentials_file = open(path, 'r')
+        credentials_file = open(path, "r")
         credentials.load(credentials_file)
         credentials_file.close()
         return credentials
@@ -229,20 +240,22 @@ class OAuthAuthorizer(HttpAuthorizer):
             access token
         """
         if self.consumer is None:
-            raise CredentialsFileError('No consumer')
+            raise CredentialsFileError("No consumer")
         if self.access_token is None:
-            raise CredentialsFileError('No access token')
+            raise CredentialsFileError("No access token")
 
         parser = SafeConfigParser()
         parser.add_section(CREDENTIALS_FILE_VERSION)
-        parser.set(CREDENTIALS_FILE_VERSION,
-                   'consumer_key', self.consumer.key)
-        parser.set(CREDENTIALS_FILE_VERSION,
-                   'consumer_secret', self.consumer.secret)
-        parser.set(CREDENTIALS_FILE_VERSION,
-                   'access_token', self.access_token.key)
-        parser.set(CREDENTIALS_FILE_VERSION,
-                   'access_secret', self.access_token.secret)
+        parser.set(CREDENTIALS_FILE_VERSION, "consumer_key", self.consumer.key)
+        parser.set(
+            CREDENTIALS_FILE_VERSION, "consumer_secret", self.consumer.secret
+        )
+        parser.set(
+            CREDENTIALS_FILE_VERSION, "access_token", self.access_token.key
+        )
+        parser.set(
+            CREDENTIALS_FILE_VERSION, "access_secret", self.access_token.secret
+        )
         parser.write(writable_file)
 
     def save_to_path(self, path):
@@ -256,8 +269,13 @@ class OAuthAuthorizer(HttpAuthorizer):
         :type path: string
         """
         credentials_file = os.fdopen(
-            os.open(path, (os.O_CREAT | os.O_TRUNC | os.O_WRONLY),
-                    (stat.S_IREAD | stat.S_IWRITE)), 'w')
+            os.open(
+                path,
+                (os.O_CREAT | os.O_TRUNC | os.O_WRONLY),
+                (stat.S_IREAD | stat.S_IWRITE),
+            ),
+            "w",
+        )
         self.save(credentials_file)
         credentials_file.close()
 
@@ -266,10 +284,11 @@ class OAuthAuthorizer(HttpAuthorizer):
         client = oauth1.Client(
             self.consumer.key,
             client_secret=self.consumer.secret,
-            resource_owner_key=TruthyString(self.access_token.key or ''),
+            resource_owner_key=TruthyString(self.access_token.key or ""),
             resource_owner_secret=self.access_token.secret,
             signature_method=oauth1.SIGNATURE_PLAINTEXT,
-            realm=self.oauth_realm)
+            realm=self.oauth_realm,
+        )
         # The older oauth library (which may still be used on the server)
         # requires the oauth_token parameter to be present and will fail
         # authentication if it isn't.  This hack forces it to be present
@@ -280,6 +299,6 @@ class OAuthAuthorizer(HttpAuthorizer):
             # client.sign returns Unicode headers; convert these to native
             # strings.
             if six.PY2:
-                key = key.encode('UTF-8')
-                value = value.encode('UTF-8')
+                key = key.encode("UTF-8")
+                value = value.encode("UTF-8")
             headers[key] = value

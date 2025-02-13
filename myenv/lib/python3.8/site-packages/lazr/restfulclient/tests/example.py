@@ -6,9 +6,9 @@
 # under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, version 3 of the License.
 #
-# lazr.restfulclient is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+# lazr.restfulclient is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
@@ -17,8 +17,8 @@
 
 __metaclass__ = type
 __all__ = [
-    'CookbookWebServiceClient',
-    ]
+    "CookbookWebServiceClient",
+]
 
 
 try:
@@ -28,7 +28,9 @@ except ImportError:
     from urllib import quote
 
 from lazr.restfulclient.resource import (
-    CollectionWithKeyBasedLookup, ServiceRoot)
+    CollectionWithKeyBasedLookup,
+    ServiceRoot,
+)
 
 
 class CookbookSet(CollectionWithKeyBasedLookup):
@@ -36,8 +38,11 @@ class CookbookSet(CollectionWithKeyBasedLookup):
 
     def _get_url_from_id(self, id):
         """Transform a cookbook name into the URL to a cookbook resource."""
-        return (str(self._root._root_uri.ensureSlash())
-                + 'cookbooks/' + quote(str(id)))
+        return (
+            str(self._root._root_uri.ensureSlash())
+            + "cookbooks/"
+            + quote(str(id))
+        )
 
     collection_of = "cookbook"
 
@@ -47,7 +52,7 @@ class RecipeSet(CollectionWithKeyBasedLookup):
 
     def _get_url_from_id(self, id):
         """Transform a recipe ID into the URL to a recipe resource."""
-        return str(self._root._root_uri.ensureSlash()) + 'recipes/' + str(id)
+        return str(self._root._root_uri.ensureSlash()) + "recipes/" + str(id)
 
     collection_of = "recipe"
 
@@ -55,13 +60,18 @@ class RecipeSet(CollectionWithKeyBasedLookup):
 class CookbookWebServiceClient(ServiceRoot):
 
     RESOURCE_TYPE_CLASSES = dict(ServiceRoot.RESOURCE_TYPE_CLASSES)
-    RESOURCE_TYPE_CLASSES['recipes'] = RecipeSet
-    RESOURCE_TYPE_CLASSES['cookbooks'] = CookbookSet
+    RESOURCE_TYPE_CLASSES["recipes"] = RecipeSet
+    RESOURCE_TYPE_CLASSES["cookbooks"] = CookbookSet
 
     DEFAULT_SERVICE_ROOT = "http://cookbooks.dev/"
     DEFAULT_VERSION = "1.0"
 
-    def __init__(self, service_root=DEFAULT_SERVICE_ROOT,
-                 version=DEFAULT_VERSION, cache=None):
+    def __init__(
+        self,
+        service_root=DEFAULT_SERVICE_ROOT,
+        version=DEFAULT_VERSION,
+        cache=None,
+    ):
         super(CookbookWebServiceClient, self).__init__(
-            None, service_root, cache=cache, version=version)
+            None, service_root, cache=cache, version=version
+        )

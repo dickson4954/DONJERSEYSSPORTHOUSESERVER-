@@ -27,9 +27,9 @@ module.
 
 __metaclass__ = type
 __all__ = [
-    'BasicHttpAuthorizer',
-    'HttpAuthorizer',
-    ]
+    "BasicHttpAuthorizer",
+    "HttpAuthorizer",
+]
 
 import base64
 
@@ -47,6 +47,7 @@ class HttpAuthorizer:
     The base class is a null authorizer which does not perform any
     authentication at all.
     """
+
     def authorizeSession(self, client):
         """Set up credentials for the entire session."""
         pass
@@ -87,8 +88,12 @@ class BasicHttpAuthorizer(HttpAuthorizer):
 
         This sets the authorization header with the username/password.
         """
-        headers['authorization'] = 'Basic ' + base64.b64encode(
-            "%s:%s" % (self.username, self.password)).strip()
+        headers["authorization"] = (
+            "Basic "
+            + base64.b64encode(
+                "%s:%s" % (self.username, self.password)
+            ).strip()
+        )
 
     def authorizeSession(self, client):
         client.add_credentials(self.username, self.password)

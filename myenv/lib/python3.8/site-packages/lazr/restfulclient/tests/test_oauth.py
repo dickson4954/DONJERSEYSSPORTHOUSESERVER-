@@ -25,10 +25,7 @@ import os.path
 import stat
 import unittest
 
-from fixtures import (
-    MockPatch,
-    TempDir,
-    )
+from fixtures import MockPatch, TempDir
 from testtools import TestCase
 
 from lazr.restfulclient.authorize.oauth import (
@@ -36,11 +33,10 @@ from lazr.restfulclient.authorize.oauth import (
     Consumer,
     OAuthAuthorizer,
     SystemWideConsumer,
-    )
+)
 
 
 class TestConsumer(TestCase):
-
     def test_data_fields(self):
         consumer = Consumer("key", "secret", "application")
         self.assertEqual(consumer.key, "key")
@@ -54,7 +50,6 @@ class TestConsumer(TestCase):
 
 
 class TestAccessToken(TestCase):
-
     def test_data_fields(self):
         access_token = AccessToken("key", "secret", "context")
         self.assertEqual(access_token.key, "key")
@@ -70,47 +65,46 @@ class TestAccessToken(TestCase):
         access_token = AccessToken("lock&key", "secret=password")
         self.assertEqual(
             "oauth_token_secret=secret%3Dpassword&oauth_token=lock%26key",
-            str(access_token))
+            str(access_token),
+        )
 
     def test_from_string(self):
         access_token = AccessToken.from_string(
-            "oauth_token_secret=secret%3Dpassword&oauth_token=lock%26key")
+            "oauth_token_secret=secret%3Dpassword&oauth_token=lock%26key"
+        )
         self.assertEqual(access_token.key, "lock&key")
         self.assertEqual(access_token.secret, "secret=password")
 
 
 class TestSystemWideConsumer(TestCase):
-
     def test_useful_distro_name(self):
         # If distro.name returns a useful string, as it does on Ubuntu,
         # we'll use the first string for the system type.
-        self.useFixture(MockPatch('distro.name', return_value='Fooix'))
-        self.useFixture(MockPatch('platform.system', return_value='FooOS'))
-        self.useFixture(MockPatch('socket.gethostname', return_value='foo'))
+        self.useFixture(MockPatch("distro.name", return_value="Fooix"))
+        self.useFixture(MockPatch("platform.system", return_value="FooOS"))
+        self.useFixture(MockPatch("socket.gethostname", return_value="foo"))
         consumer = SystemWideConsumer("app name")
-        self.assertEqual(
-            consumer.key, 'System-wide: Fooix (foo)')
+        self.assertEqual(consumer.key, "System-wide: Fooix (foo)")
 
     def test_empty_distro_name(self):
         # If distro.name returns an empty string, as it does on Windows and
         # Mac OS X, we fall back to the result of platform.system().
-        self.useFixture(MockPatch('distro.name', return_value=''))
-        self.useFixture(MockPatch('platform.system', return_value='BarOS'))
-        self.useFixture(MockPatch('socket.gethostname', return_value='bar'))
+        self.useFixture(MockPatch("distro.name", return_value=""))
+        self.useFixture(MockPatch("platform.system", return_value="BarOS"))
+        self.useFixture(MockPatch("socket.gethostname", return_value="bar"))
         consumer = SystemWideConsumer("app name")
-        self.assertEqual(
-            consumer.key, 'System-wide: BarOS (bar)')
+        self.assertEqual(consumer.key, "System-wide: BarOS (bar)")
 
     def test_broken_distro_name(self):
         # If distro.name raises an exception, we fall back to the result of
         # platform.system().
         self.useFixture(
-            MockPatch('distro.name', side_effect=Exception('Oh noes!')))
-        self.useFixture(MockPatch('platform.system', return_value='BazOS'))
-        self.useFixture(MockPatch('socket.gethostname', return_value='baz'))
+            MockPatch("distro.name", side_effect=Exception("Oh noes!"))
+        )
+        self.useFixture(MockPatch("platform.system", return_value="BazOS"))
+        self.useFixture(MockPatch("socket.gethostname", return_value="baz"))
         consumer = SystemWideConsumer("app name")
-        self.assertEqual(
-            consumer.key, 'System-wide: BazOS (baz)')
+        self.assertEqual(consumer.key, "System-wide: BazOS (baz)")
 
 
 class TestOAuthAuthorizer(TestCase):
@@ -120,26 +114,29 @@ class TestOAuthAuthorizer(TestCase):
         # Credentials can be saved to and loaded from a file using
         # save_to_path() and load_from_path().
         temp_dir = self.useFixture(TempDir()).path
-        credentials_path = os.path.join(temp_dir, 'credentials')
+        credentials_path = os.path.join(temp_dir, "credentials")
         credentials = OAuthAuthorizer(
-            'consumer.key', consumer_secret='consumer.secret',
-            access_token=AccessToken('access.key', 'access.secret'))
+            "consumer.key",
+            consumer_secret="consumer.secret",
+            access_token=AccessToken("access.key", "access.secret"),
+        )
         credentials.save_to_path(credentials_path)
         self.assertTrue(os.path.exists(credentials_path))
 
         # Make sure the file is readable and writable by the user, but
         # not by anyone else.
-        self.assertEqual(stat.S_IMODE(os.stat(credentials_path).st_mode),
-                          stat.S_IREAD | stat.S_IWRITE)
+        self.assertEqual(
+            stat.S_IMODE(os.stat(credentials_path).st_mode),
+            stat.S_IREAD | stat.S_IWRITE,
+        )
 
         loaded_credentials = OAuthAuthorizer.load_from_path(credentials_path)
-        self.assertEqual(loaded_credentials.consumer.key, 'consumer.key')
+        self.assertEqual(loaded_credentials.consumer.key, "consumer.key")
+        self.assertEqual(loaded_credentials.consumer.secret, "consumer.secret")
+        self.assertEqual(loaded_credentials.access_token.key, "access.key")
         self.assertEqual(
-            loaded_credentials.consumer.secret, 'consumer.secret')
-        self.assertEqual(
-            loaded_credentials.access_token.key, 'access.key')
-        self.assertEqual(
-            loaded_credentials.access_token.secret, 'access.secret')
+            loaded_credentials.access_token.secret, "access.secret"
+        )
 
 
 def test_suite():

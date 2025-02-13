@@ -19,7 +19,7 @@
 """Classes for working with JSON."""
 
 __metaclass__ = type
-__all__ = ['DatetimeJSONEncoder']
+__all__ = ["DatetimeJSONEncoder"]
 
 import datetime
 from json import JSONEncoder
@@ -30,6 +30,7 @@ class DatetimeJSONEncoder(JSONEncoder):
 
     Datetime objects are formatted according to ISO 1601.
     """
+
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()

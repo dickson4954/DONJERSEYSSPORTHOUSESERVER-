@@ -36,6 +36,7 @@ package.
    caching
    authorizer.standalone
    retry.standalone
+   CONTRIBUTING
    NEWS
 
 .. _Sphinx: http://sphinx.pocoo.org/

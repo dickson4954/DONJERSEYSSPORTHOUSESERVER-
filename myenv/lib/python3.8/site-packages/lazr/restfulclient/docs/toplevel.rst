@@ -207,4 +207,3 @@ different HTTPError subclasses, see tests/test_error.py.
 
     >>> print isinstance(e, HTTPError)
     True
-

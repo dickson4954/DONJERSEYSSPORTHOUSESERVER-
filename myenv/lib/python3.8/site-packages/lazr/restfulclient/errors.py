@@ -20,21 +20,21 @@
 
 __metaclass__ = type
 __all__ = [
-    'BadRequest',
-    'Conflict',
-    'ClientError',
-    'CredentialsError',
-    'CredentialsFileError',
-    'HTTPError',
-    'MethodNotAllowed',
-    'NotFound',
-    'PreconditionFailed',
-    'RestfulError',
-    'ResponseError',
-    'ServerError',
-    'Unauthorized',
-    'UnexpectedResponseError',
-    ]
+    "BadRequest",
+    "Conflict",
+    "ClientError",
+    "CredentialsError",
+    "CredentialsFileError",
+    "HTTPError",
+    "MethodNotAllowed",
+    "NotFound",
+    "PreconditionFailed",
+    "RestfulError",
+    "ResponseError",
+    "ServerError",
+    "Unauthorized",
+    "UnexpectedResponseError",
+]
 
 
 class RestfulError(Exception):
@@ -62,7 +62,7 @@ class UnexpectedResponseError(ResponseError):
     """An unexpected response was received."""
 
     def __str__(self):
-        return '%s: %s' % (self.response.status, self.response.reason)
+        return "%s: %s" % (self.response.status, self.response.reason)
 
 
 class HTTPError(ResponseError):
@@ -70,12 +70,14 @@ class HTTPError(ResponseError):
 
     def __str__(self):
         """Show the error code, response headers, and response body."""
-        headers = "\n".join(["%s: %s" % pair
-                             for pair in sorted(self.response.items())])
-        return ("HTTP Error %s: %s\n"
-                "Response headers:\n---\n%s\n---\n"
-                "Response body:\n---\n%s\n---\n") % (
-            self.response.status, self.response.reason, headers, self.content)
+        headers = "\n".join(
+            ["%s: %s" % pair for pair in sorted(self.response.items())]
+        )
+        return (
+            "HTTP Error %s: %s\n"
+            "Response headers:\n---\n%s\n---\n"
+            "Response body:\n---\n%s\n---\n"
+        ) % (self.response.status, self.response.reason, headers, self.content)
 
 
 class ClientError(HTTPError):
@@ -114,6 +116,7 @@ class PreconditionFailed(ClientError):
     object is now out of date.
     """
 
+
 class ServerError(HTTPError):
     """An exception representing a server-side error."""
 
@@ -126,12 +129,12 @@ def error_for(response, content):
     if nothing else is appropriate.
     """
     http_errors_by_status_code = {
-        400 : BadRequest,
-        401 : Unauthorized,
-        404 : NotFound,
-        405 : MethodNotAllowed,
-        409 : Conflict,
-        412 : PreconditionFailed,
+        400: BadRequest,
+        401: Unauthorized,
+        404: NotFound,
+        405: MethodNotAllowed,
+        409: Conflict,
+        412: PreconditionFailed,
     }
 
     if response.status // 100 <= 3:

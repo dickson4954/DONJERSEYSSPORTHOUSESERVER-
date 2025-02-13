@@ -20,13 +20,13 @@
 
 __metaclass__ = type
 __all__ = [
-    'Collection',
-    'CollectionWithKeyBasedLookup',
-    'Entry',
-    'NamedOperation',
-    'Resource',
-    'ServiceRoot',
-    ]
+    "Collection",
+    "CollectionWithKeyBasedLookup",
+    "Entry",
+    "NamedOperation",
+    "Resource",
+    "ServiceRoot",
+]
 
 
 from email.message import Message
@@ -35,26 +35,27 @@ from json import dumps, loads
 
 try:
     # Python 3.
-    from urllib.parse import urljoin, urlparse, parse_qs, unquote, urlencode
+    from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse
 except ImportError:
     from urlparse import urljoin, urlparse, parse_qs
     from urllib import unquote, urlencode
 
 import sys
+
 if sys.version_info[0] >= 3:
     text_type = str
     binary_type = bytes
 else:
-    text_type = unicode
+    text_type = unicode  # noqa: F821
     binary_type = str
 
-from lazr.uri import URI
 from wadllib.application import Resource as WadlResource
 
 from lazr.restfulclient import __version__
 from lazr.restfulclient._browser import Browser, RestfulHttp
 from lazr.restfulclient._json import DatetimeJSONEncoder
 from lazr.restfulclient.errors import HTTPError
+from lazr.uri import URI
 
 missing = object()
 
@@ -70,6 +71,7 @@ class HeaderDictionary:
     the underlying dictionary. That way wadllib can pass in the
     official header name and httplib2 will get the lowercased name.
     """
+
     def __init__(self, wrapped_dictionary):
         self.wrapped_dictionary = wrapped_dictionary
 
@@ -88,7 +90,7 @@ class HeaderDictionary:
 class RestfulBase:
     """Base class for classes that know about lazr.restful services."""
 
-    JSON_MEDIA_TYPE = 'application/json'
+    JSON_MEDIA_TYPE = "application/json"
 
     def _transform_resources_to_links(self, dictionary):
         new_dictionary = {}
@@ -119,8 +121,8 @@ class Resource(RestfulBase):
             root = self
         # These values need to be put directly into __dict__ to avoid
         # calling __setattr__, which would cause an infinite recursion.
-        self.__dict__['_root'] = root
-        self.__dict__['_wadl_resource'] = wadl_resource
+        self.__dict__["_root"] = root
+        self.__dict__["_wadl_resource"] = wadl_resource
 
     FIND_COLLECTIONS = object()
     FIND_ENTRIES = object()
@@ -149,19 +151,22 @@ class Resource(RestfulBase):
         names = []
         for method in self._wadl_resource.method_iter:
             name = method.name.lower()
-            if name == 'get':
-                params = method.request.params(['query', 'plain'])
-            elif name == 'post':
-                for media_type in ['application/x-www-form-urlencoded',
-                                   'multipart/form-data']:
+            if name == "get":
+                params = method.request.params(["query", "plain"])
+            elif name == "post":
+                for media_type in [
+                    "application/x-www-form-urlencoded",
+                    "multipart/form-data",
+                ]:
                     definition = method.request.get_representation_definition(
-                        media_type)
+                        media_type
+                    )
                     if definition is not None:
                         definition = definition.resolve_definition()
                         break
                 params = definition.params(self._wadl_resource)
             for param in params:
-                if param.name == 'ws.op':
+                if param.name == "ws.op":
                     names.append(param.fixed_value)
                     break
         return names
@@ -170,19 +175,18 @@ class Resource(RestfulBase):
     def __members__(self):
         """A hook into dir() that returns web service-derived members."""
         return self._get_parameter_names(
-            self.FIND_COLLECTIONS, self.FIND_ENTRIES, self.FIND_ATTRIBUTES)
+            self.FIND_COLLECTIONS, self.FIND_ENTRIES, self.FIND_ATTRIBUTES
+        )
 
     __methods__ = lp_operations
 
     def _get_parameter_names(self, *kinds):
         """Retrieve some subset of the resource's parameters."""
         names = []
-        for parameter in self._wadl_resource.parameters(
-            self.JSON_MEDIA_TYPE):
+        for parameter in self._wadl_resource.parameters(self.JSON_MEDIA_TYPE):
             name = parameter.name
             link = parameter.link
-            if (name != 'self_link' and link is not None
-                and link.can_follow):
+            if name != "self_link" and link is not None and link.can_follow:
                 # This is a link to a resource with a WADL
                 # description.  Since this is a lazr.restful web
                 # service, we know it's either an entry or a
@@ -192,7 +196,7 @@ class Resource(RestfulBase):
                 # self_link is a special case. 'obj.self' will always
                 # work, but it's not useful. 'obj.self_link' is
                 # useful, so we advertise the scalar value instead.
-                if name.endswith('_collection_link'):
+                if name.endswith("_collection_link"):
                     # It's a link to a collection.
                     if self.FIND_COLLECTIONS in kinds:
                         names.append(name[:-16])
@@ -222,9 +226,8 @@ class Resource(RestfulBase):
                  representation, if the parameter is a link.
         """
         self._ensure_representation()
-        for suffix in ['_link', '_collection_link']:
-            param = self._wadl_resource.get_parameter(
-                param_name + suffix)
+        for suffix in ["_link", "_collection_link"]:
+            param = self._wadl_resource.get_parameter(param_name + suffix)
             if param is not None:
                 try:
                     param.get_value()
@@ -239,7 +242,8 @@ class Resource(RestfulBase):
                     return None
                 linked_resource = param.linked_resource
                 return self._create_bound_resource(
-                    self._root, linked_resource, param_name=param.name)
+                    self._root, linked_resource, param_name=param.name
+                )
         param = self._wadl_resource.get_parameter(param_name)
         if param is None:
             raise KeyError("No such parameter: %s" % param_name)
@@ -251,21 +255,27 @@ class Resource(RestfulBase):
         :return: A NamedOperation instance that can be called with
                  appropriate arguments to invoke the operation.
         """
-        params = {'ws.op': operation_name}
-        method = self._wadl_resource.get_method('get', query_params=params)
+        params = {"ws.op": operation_name}
+        method = self._wadl_resource.get_method("get", query_params=params)
         if method is None:
             method = self._wadl_resource.get_method(
-                'post', representation_params=params)
+                "post", representation_params=params
+            )
         if method is None:
             raise KeyError("No operation with name: %s" % operation_name)
         return NamedOperation(self._root, self, method)
 
     @classmethod
     def _create_bound_resource(
-        cls, root, resource, representation=None,
-        representation_media_type='application/json',
-        representation_needs_processing=True, representation_definition=None,
-        param_name=None):
+        cls,
+        root,
+        resource,
+        representation=None,
+        representation_media_type="application/json",
+        representation_needs_processing=True,
+        representation_definition=None,
+        param_name=None,
+    ):
         """Create a lazr.restful Resource subclass from a wadllib Resource.
 
         :param resource: The wadllib Resource to wrap.
@@ -295,18 +305,20 @@ class Resource(RestfulBase):
         resource_type = urlparse(type_url)[-1]
         default = Entry
 
-        if (type_url.endswith('-page')
-            or (param_name is not None
-                and param_name.endswith('_collection_link'))):
+        if type_url.endswith("-page") or (
+            param_name is not None and param_name.endswith("_collection_link")
+        ):
             default = Collection
         r_class = root.RESOURCE_TYPE_CLASSES.get(resource_type, default)
         if representation is not None:
             # We've been given a representation. Bind the resource
             # immediately.
             resource = resource.bind(
-                representation, representation_media_type,
+                representation,
+                representation_media_type,
                 representation_needs_processing,
-                representation_definition=representation_definition)
+                representation_definition=representation_definition,
+            )
         else:
             # We'll fetch a representation and bind the resource when
             # necessary.
@@ -319,16 +331,18 @@ class Resource(RestfulBase):
             self._wadl_resource._url = new_url
         headers = {}
         if etag is not None:
-            headers['If-None-Match'] = etag
+            headers["If-None-Match"] = etag
         representation = self._root._browser.get(
-            self._wadl_resource, headers=headers)
+            self._wadl_resource, headers=headers
+        )
         if representation == self._root._browser.NOT_MODIFIED:
             # The entry wasn't modified. No need to do anything.
             return
         # __setattr__ assumes we're setting an attribute of the resource,
         # so we manipulate __dict__ directly.
-        self.__dict__['_wadl_resource'] = self._wadl_resource.bind(
-            representation, self.JSON_MEDIA_TYPE)
+        self.__dict__["_wadl_resource"] = self._wadl_resource.bind(
+            representation, self.JSON_MEDIA_TYPE
+        )
 
     def __getattr__(self, attr):
         """Try to retrive a named operation or parameter of the given name."""
@@ -339,13 +353,15 @@ class Resource(RestfulBase):
         try:
             return self.lp_get_parameter(attr)
         except KeyError:
-            raise AttributeError("%s object has no attribute '%s'"
-                % (self, attr))
+            raise AttributeError(
+                "%s object has no attribute '%s'" % (self, attr)
+            )
 
     def lp_values_for(self, param_name):
         """Find the set of possible values for a parameter."""
         parameter = self._wadl_resource.get_parameter(
-            param_name, self.JSON_MEDIA_TYPE)
+            param_name, self.JSON_MEDIA_TYPE
+        )
         options = parameter.options
         if len(options) > 0:
             return [option.value for option in options]
@@ -353,7 +369,7 @@ class Resource(RestfulBase):
 
     def _get_external_param_name(self, param_name):
         """What's this parameter's name in the underlying representation?"""
-        for suffix in ['_link', '_collection_link', '']:
+        for suffix in ["_link", "_collection_link", ""]:
             name = param_name + suffix
             if self._wadl_resource.get_parameter(name):
                 return name
@@ -365,7 +381,7 @@ class Resource(RestfulBase):
             # Get a representation of the linked resource.
             representation = self._root._browser.get(self._wadl_resource)
             if isinstance(representation, binary_type):
-                representation = representation.decode('utf-8')
+                representation = representation.decode("utf-8")
             representation = loads(representation)
 
             # In rare cases, the resource type served by the
@@ -377,15 +393,20 @@ class Resource(RestfulBase):
             # defined by Entry, since it's not relevant to other
             # resource types.
             if isinstance(representation, dict):
-                type_link = representation['resource_type_link']
-                if (type_link is not None
-                    and type_link != self._wadl_resource.type_url):
+                type_link = representation["resource_type_link"]
+                if (
+                    type_link is not None
+                    and type_link != self._wadl_resource.type_url
+                ):
                     resource_type = self._root._wadl.get_resource_type(
-                        type_link)
+                        type_link
+                    )
                     self._wadl_resource.tag = resource_type.tag
-            self.__dict__['_wadl_resource'] = self._wadl_resource.bind(
-                representation, self.JSON_MEDIA_TYPE,
-                representation_needs_processing=False)
+            self.__dict__["_wadl_resource"] = self._wadl_resource.bind(
+                representation,
+                self.JSON_MEDIA_TYPE,
+                representation_needs_processing=False,
+            )
 
     def __ne__(self, other):
         """Inequality operator."""
@@ -405,9 +426,9 @@ class ScalarValue(Resource):
 class HostedFile(Resource):
     """A resource representing a file managed by a lazr.restful service."""
 
-    def open(self, mode='r', content_type=None, filename=None):
+    def open(self, mode="r", content_type=None, filename=None):
         """Open the file on the server for read or write access."""
-        if mode in ('r', 'w'):
+        if mode in ("r", "w"):
             return HostedFileBuffer(self, mode, content_type, filename)
         else:
             raise ValueError("Invalid mode. Supported modes are: r, w")
@@ -429,8 +450,10 @@ class HostedFile(Resource):
         retrieve or modify the hosted file contents is to open a
         filehandle, which goes direct to the server.
         """
-        return (other is not None and
-                self._wadl_resource.url == other._wadl_resource.url)
+        return (
+            other is not None
+            and self._wadl_resource.url == other._wadl_resource.url
+        )
 
 
 class ServiceRoot(Resource):
@@ -441,12 +464,22 @@ class ServiceRoot(Resource):
 
     # Custom subclasses of Resource to use when
     # instantiating resources of a certain WADL type.
-    RESOURCE_TYPE_CLASSES = {'HostedFile': HostedFile,
-                             'ScalarValue': ScalarValue}
+    RESOURCE_TYPE_CLASSES = {
+        "HostedFile": HostedFile,
+        "ScalarValue": ScalarValue,
+    }
 
-    def __init__(self, authorizer, service_root, cache=None,
-                 timeout=None, proxy_info=None, version=None,
-                 base_client_name='', max_retries=Browser.MAX_RETRIES):
+    def __init__(
+        self,
+        authorizer,
+        service_root,
+        cache=None,
+        timeout=None,
+        proxy_info=None,
+        version=None,
+        base_client_name="",
+        max_retries=Browser.MAX_RETRIES,
+    ):
         """Root access to a lazr.restful API.
 
         :param credentials: The credentials used to access the service.
@@ -454,11 +487,11 @@ class ServiceRoot(Resource):
         :type service_root: string
         """
         if version is not None:
-            if service_root[-1] != '/':
-                service_root += '/'
+            if service_root[-1] != "/":
+                service_root += "/"
             service_root += str(version)
-            if service_root[-1] != '/':
-                service_root += '/'
+            if service_root[-1] != "/":
+                service_root += "/"
         self._root_uri = URI(service_root)
 
         # Set up data necessary to calculate the User-Agent header.
@@ -467,14 +500,21 @@ class ServiceRoot(Resource):
         # Get the WADL definition.
         self.credentials = authorizer
         self._browser = Browser(
-            self, authorizer, cache, timeout, proxy_info, self._user_agent,
-            max_retries)
+            self,
+            authorizer,
+            cache,
+            timeout,
+            proxy_info,
+            self._user_agent,
+            max_retries,
+        )
         self._wadl = self._browser.get_wadl_application(self._root_uri)
 
         # Get the root resource.
-        root_resource = self._wadl.get_resource_by_path('')
+        root_resource = self._wadl.get_resource_by_path("")
         bound_root = root_resource.bind(
-            self._browser.get(root_resource), 'application/json')
+            self._browser.get(root_resource), "application/json"
+        )
         super(ServiceRoot, self).__init__(None, bound_root)
 
     @property
@@ -490,17 +530,17 @@ class ServiceRoot(Resource):
         user agent (such as the application name).
         """
         base_portion = "lazr.restfulclient %s" % __version__
-        if self._base_client_name != '':
-            base_portion = self._base_client_name + ' (' + base_portion + ')'
+        if self._base_client_name != "":
+            base_portion = self._base_client_name + " (" + base_portion + ")"
 
         message = Message()
-        message['User-Agent'] = base_portion
+        message["User-Agent"] = base_portion
         if self.credentials is not None:
             user_agent_params = self.credentials.user_agent_params
             for key in sorted(user_agent_params):
                 value = user_agent_params[key]
-                message.set_param(key, value, 'User-Agent')
-        return message['User-Agent']
+                message.set_param(key, value, "User-Agent")
+        return message["User-Agent"]
 
     def httpFactory(self, authorizer, cache, timeout, proxy_info):
         return RestfulHttp(authorizer, cache, timeout, proxy_info)
@@ -508,28 +548,33 @@ class ServiceRoot(Resource):
     def load(self, url):
         """Load a resource given its URL."""
         parsed = urlparse(url)
-        if parsed.scheme == '':
+        if parsed.scheme == "":
             # This is a relative URL. Make it absolute by joining
             # it with the service root resource.
-            if url[:1] == '/':
+            if url[:1] == "/":
                 url = url[1:]
             url = str(self._root_uri.append(url))
         document = self._browser.get(url)
         if isinstance(document, binary_type):
-            document = document.decode('utf-8')
+            document = document.decode("utf-8")
         try:
             representation = loads(document)
         except ValueError:
             raise ValueError("%s doesn't serve a JSON document." % url)
         type_link = representation.get("resource_type_link")
         if type_link is None:
-            raise ValueError("Couldn't determine the resource type of %s."
-                             % url)
+            raise ValueError(
+                "Couldn't determine the resource type of %s." % url
+            )
         resource_type = self._root._wadl.get_resource_type(type_link)
         wadl_resource = WadlResource(self._root._wadl, url, resource_type.tag)
         return self._create_bound_resource(
-            self._root, wadl_resource, representation, 'application/json',
-            representation_needs_processing=False)
+            self._root,
+            wadl_resource,
+            representation,
+            "application/json",
+            representation_needs_processing=False,
+        )
 
 
 class NamedOperation(RestfulBase):
@@ -544,27 +589,31 @@ class NamedOperation(RestfulBase):
     def __call__(self, *args, **kwargs):
         """Invoke the method and process the result."""
         if len(args) > 0:
-            raise TypeError('Method must be called with keyword args.')
+            raise TypeError("Method must be called with keyword args.")
         http_method = self.wadl_method.name
         args = self._transform_resources_to_links(kwargs)
         request = self.wadl_method.request
 
-        if http_method in ('get', 'head', 'delete'):
+        if http_method in ("get", "head", "delete"):
             params = request.query_params
         else:
             definition = request.get_representation_definition(
-                'multipart/form-data')
+                "multipart/form-data"
+            )
             if definition is None:
                 definition = request.get_representation_definition(
-                    'application/x-www-form-urlencoded')
+                    "application/x-www-form-urlencoded"
+                )
             assert definition is not None, (
                 "A POST named operation must define a multipart or "
                 "form-urlencoded request representation."
-                )
+            )
             params = definition.params(self.resource._wadl_resource)
-        send_as_is_params = set([param.name for param in params
-                                 if param.type == 'binary'
-                                 or len(param.options) > 0])
+        send_as_is_params = {
+            param.name
+            for param in params
+            if param.type == "binary" or len(param.options) > 0
+        }
         for key, value in args.items():
             # Certain parameter values should not be JSON-encoded:
             # binary parameters (because they can't be JSON-encoded)
@@ -573,16 +622,17 @@ class NamedOperation(RestfulBase):
             # is a little hacky, but it's the best solution for now.
             if key not in send_as_is_params:
                 args[key] = dumps(value, cls=DatetimeJSONEncoder)
-        if http_method in ('get', 'head', 'delete'):
+        if http_method in ("get", "head", "delete"):
             url = self.wadl_method.build_request_url(**args)
-            in_representation = ''
+            in_representation = ""
             extra_headers = {}
         else:
             url = self.wadl_method.build_request_url()
-            (media_type,
-             in_representation) = self.wadl_method.build_representation(
-                **args)
-            extra_headers = {'Content-type': media_type}
+            (
+                media_type,
+                in_representation,
+            ) = self.wadl_method.build_representation(**args)
+            extra_headers = {"Content-type": media_type}
         # Pass uppercase method names to httplib2, as that is what it works
         # with. If you pass a lowercase method name to httplib then it doesn't
         # consider it to be a GET, PUT, etc., and so will do things like not
@@ -590,18 +640,21 @@ class NamedOperation(RestfulBase):
         # is compared in this method, but httplib2 expects the opposite, hence
         # the .upper() call.
         response, content = self.root._browser._request(
-            url, in_representation, http_method.upper(),
-            extra_headers=extra_headers)
+            url,
+            in_representation,
+            http_method.upper(),
+            extra_headers=extra_headers,
+        )
 
         if response.status == 201:
             return self._handle_201_response(url, response, content)
         else:
-            if http_method == 'post':
+            if http_method == "post":
                 # The method call probably modified this resource in
                 # an unknown way. If it moved to a new location, reload it or
                 # else just refresh its representation.
                 if response.status == 301:
-                    url = response['location']
+                    url = response["location"]
                     response, content = self.root._browser._request(url)
                 else:
                     self.resource.lp_refresh()
@@ -610,32 +663,33 @@ class NamedOperation(RestfulBase):
     def _handle_201_response(self, url, response, content):
         """Handle the creation of a new resource by fetching it."""
         wadl_response = self.wadl_method.response.bind(
-            HeaderDictionary(response))
-        wadl_parameter = wadl_response.get_parameter('Location')
+            HeaderDictionary(response)
+        )
+        wadl_parameter = wadl_response.get_parameter("Location")
         wadl_resource = wadl_parameter.linked_resource
         # Fetch a representation of the new resource.
-        response, content = self.root._browser._request(
-            wadl_resource.url)
+        response, content = self.root._browser._request(wadl_resource.url)
         # Return an instance of the appropriate lazr.restful
         # Resource subclass.
         return Resource._create_bound_resource(
-            self.root, wadl_resource, content, response['content-type'])
+            self.root, wadl_resource, content, response["content-type"]
+        )
 
     def _handle_200_response(self, url, response, content):
         """Process the return value of an operation."""
-        content_type = response['content-type']
+        content_type = response["content-type"]
         # Process the returned content, assuming we know how.
         response_definition = self.wadl_method.response
         representation_definition = (
-            response_definition.get_representation_definition(
-                content_type))
+            response_definition.get_representation_definition(content_type)
+        )
 
         if representation_definition is None:
             # The operation returned a document with nothing
             # special about it.
             if content_type == self.JSON_MEDIA_TYPE:
                 if isinstance(content, binary_type):
-                    content = content.decode('utf-8')
+                    content = content.decode("utf-8")
                 return loads(content)
             # We don't know how to process the content.
             return content
@@ -643,8 +697,8 @@ class NamedOperation(RestfulBase):
         # The operation returned a representation of some
         # resource. Instantiate a Resource object for it.
         if isinstance(content, binary_type):
-            content = content.decode('utf-8')
-        
+            content = content.decode("utf-8")
+
         document = loads(content)
         if document is None:
             # The operation returned a null value.
@@ -656,9 +710,11 @@ class NamedOperation(RestfulBase):
             # object will support all of the right named operations.
             url = document["self_link"]
             resource_type = self.root._wadl.get_resource_type(
-                document["resource_type_link"])
-            wadl_resource = WadlResource(self.root._wadl, url,
-                                         resource_type.tag)
+                document["resource_type_link"]
+            )
+            wadl_resource = WadlResource(
+                self.root._wadl, url, resource_type.tag
+            )
         else:
             # The operation returned a collection. It's probably an ad
             # hoc collection that doesn't correspond to any resource
@@ -666,14 +722,20 @@ class NamedOperation(RestfulBase):
             # representation type defined in the return value, instead
             # of a resource type tag.
             representation_definition = (
-                representation_definition.resolve_definition())
+                representation_definition.resolve_definition()
+            )
             wadl_resource = WadlResource(
-                self.root._wadl, url, representation_definition.tag)
+                self.root._wadl, url, representation_definition.tag
+            )
 
         return Resource._create_bound_resource(
-            self.root, wadl_resource, document, content_type,
+            self.root,
+            wadl_resource,
+            document,
+            content_type,
             representation_needs_processing=False,
-            representation_definition=representation_definition)
+            representation_definition=representation_definition,
+        )
 
     def _get_external_param_name(self, param_name):
         """Named operation parameter names are sent as is."""
@@ -695,13 +757,15 @@ class Entry(Resource):
         # occur.  Poking this directly into self.__dict__ means that
         # the check for self._dirty_attributes won't call __getattr__(),
         # breaking the cycle.
-        self.__dict__['_dirty_attributes'] = {}
+        self.__dict__["_dirty_attributes"] = {}
         super(Entry, self).__init__(root, wadl_resource)
 
     def __repr__(self):
         """Return the WADL resource type and the URL to the resource."""
-        return '<%s at %s>' % (
-            URI(self.resource_type_link).fragment, self.self_link)
+        return "<%s at %s>" % (
+            URI(self.resource_type_link).fragment,
+            self.self_link,
+        )
 
     def lp_delete(self):
         """Delete the resource."""
@@ -713,7 +777,7 @@ class Entry(Resource):
 
     def __getattr__(self, name):
         """Try to retrive a parameter of the given name."""
-        if name != '_dirty_attributes':
+        if name != "_dirty_attributes":
             if name in self._dirty_attributes:
                 return self._dirty_attributes[name]
         return super(Entry, self).__getattr__(name)
@@ -721,8 +785,10 @@ class Entry(Resource):
     def __setattr__(self, name, value):
         """Set the parameter of the given name."""
         if not self.lp_has_parameter(name):
-            raise AttributeError("'%s' object has no attribute '%s'" %
-                                 (self.__class__.__name__, name))
+            raise AttributeError(
+                "'%s' object has no attribute '%s'"
+                % (self.__class__.__name__, name)
+            )
         self._dirty_attributes[name] = value
 
     def __eq__(self, other):
@@ -733,44 +799,47 @@ class Entry(Resource):
         contain the same values.
         """
         return (
-            other is not None and
-            self.self_link == other.self_link and
-            self.http_etag == other.http_etag and
-            self._dirty_attributes == other._dirty_attributes)
+            other is not None
+            and self.self_link == other.self_link
+            and self.http_etag == other.http_etag
+            and self._dirty_attributes == other._dirty_attributes
+        )
 
     def lp_refresh(self, new_url=None):
         """Update this resource's representation."""
-        etag = getattr(self, 'http_etag', None)
+        etag = getattr(self, "http_etag", None)
         super(Entry, self).lp_refresh(new_url, etag)
         self._dirty_attributes.clear()
 
     def lp_save(self):
         """Save changes to the entry."""
         representation = self._transform_resources_to_links(
-            self._dirty_attributes)
+            self._dirty_attributes
+        )
 
         # If the entry contains an ETag, set the If-Match header
         # to that value.
         headers = {}
-        etag = getattr(self, 'http_etag', None)
+        etag = getattr(self, "http_etag", None)
         if etag is not None:
-            headers['If-Match'] = etag
+            headers["If-Match"] = etag
 
         # PATCH the new representation to the 'self' link.  It's possible that
         # this will cause the object to be permanently moved.  Catch that
         # exception and refresh our representation.
         response, content = self._root._browser.patch(
-            URI(self.self_link), representation, headers)
+            URI(self.self_link), representation, headers
+        )
         if response.status == 301:
-            self.lp_refresh(response['location'])
+            self.lp_refresh(response["location"])
         self._dirty_attributes.clear()
 
-        content_type = response['content-type']
+        content_type = response["content-type"]
         if response.status == 209 and content_type == self.JSON_MEDIA_TYPE:
             # The server sent back a new representation of the object.
             # Use it in preference to the existing representation.
             if isinstance(content, binary_type):
-                content = content.decode('utf-8')
+                content = content.decode("utf-8")
             new_representation = loads(content)
             self._wadl_resource.representation = new_representation
             self._wadl_resource.media_type = content_type
@@ -799,7 +868,7 @@ class Collection(Resource):
             # not directly present.
             return total_size.value
         else:
-            raise TypeError('collection size is not available')
+            raise TypeError("collection size is not available")
 
     def __iter__(self):
         """Iterate over the items in the collection.
@@ -811,14 +880,15 @@ class Collection(Resource):
         current_page = self._wadl_resource.representation
         while True:
             for resource in self._convert_dicts_to_entries(
-                current_page.get('entries', {})):
+                current_page.get("entries", {})
+            ):
                 yield resource
-            next_link = current_page.get('next_collection_link')
+            next_link = current_page.get("next_collection_link")
             if next_link is None:
                 break
             next_get = self._root._browser.get(URI(next_link))
             if isinstance(next_get, binary_type):
-                next_get = next_get.decode('utf-8')
+                next_get = next_get.decode("utf-8")
             current_page = loads(next_get)
 
     def __getitem__(self, key):
@@ -845,15 +915,19 @@ class Collection(Resource):
         stop = slice.stop
 
         if start < 0:
-            raise ValueError("Collection slices must have a nonnegative "
-                             "start point.")
+            raise ValueError(
+                "Collection slices must have a nonnegative " "start point."
+            )
         if stop < 0:
-            raise ValueError("Collection slices must have a definite, "
-                             "nonnegative end point.")
+            raise ValueError(
+                "Collection slices must have a definite, "
+                "nonnegative end point."
+            )
 
         existing_representation = self._wadl_resource.representation
-        if (existing_representation is not None
-            and start < len(existing_representation['entries'])):
+        if existing_representation is not None and start < len(
+            existing_representation["entries"]
+        ):
             # An optimization: the first page of entries has already
             # been loaded. This can happen if this collection is the
             # return value of a named operation, or if the client did
@@ -870,11 +944,11 @@ class Collection(Resource):
             # objects to retrieve from the server later. This saves us
             # time and bandwidth, and it might let us save a whole
             # HTTP request.
-            entry_page = existing_representation['entries']
+            entry_page = existing_representation["entries"]
 
             first_page_size = len(entry_page)
             entry_dicts = entry_page[start:stop]
-            page_url = existing_representation.get('next_collection_link')
+            page_url = existing_representation.get("next_collection_link")
         else:
             # No part of this collection has been loaded yet, or the
             # slice starts beyond the part that has been loaded. We'll
@@ -884,7 +958,8 @@ class Collection(Resource):
             first_page_size = None
             entry_dicts = []
             page_url = self._with_url_query_variable_set(
-                self._wadl_resource.url, 'ws.start', start)
+                self._wadl_resource.url, "ws.start", start
+            )
 
         desired_size = stop - start
         more_needed = desired_size - len(entry_dicts)
@@ -893,13 +968,13 @@ class Collection(Resource):
         while more_needed > 0 and page_url is not None:
             page_get = self._root._browser.get(page_url)
             if isinstance(page_get, binary_type):
-                page_get = page_get.decode('utf-8')
+                page_get = page_get.decode("utf-8")
             representation = loads(page_get)
-            current_page_entries = representation['entries']
+            current_page_entries = representation["entries"]
             entry_dicts += current_page_entries[:more_needed]
             more_needed = desired_size - len(entry_dicts)
 
-            page_url = representation.get('next_collection_link')
+            page_url = representation.get("next_collection_link")
             if page_url is None:
                 # We've gotten the entire collection; there are no
                 # more entries.
@@ -915,14 +990,17 @@ class Collection(Resource):
                 # need. If we're wrong, there's no problem; we'll just
                 # keep looping.
                 page_url = self._with_url_query_variable_set(
-                    page_url, 'ws.size', more_needed)
+                    page_url, "ws.size", more_needed
+                )
 
         if slice.step is not None:
-            entry_dicts = entry_dicts[::slice.step]
+            entry_dicts = entry_dicts[:: slice.step]
 
         # Convert entry_dicts into a list of Entry objects.
-        return [resource for resource
-                in self._convert_dicts_to_entries(entry_dicts)]
+        return [
+            resource
+            for resource in self._convert_dicts_to_entries(entry_dicts)
+        ]
 
     def _convert_dicts_to_entries(self, entries):
         """Convert dictionaries describing entries to Entry objects.
@@ -937,17 +1015,20 @@ class Collection(Resource):
         :yield: A sequence of Entry instances.
         """
         for entry_dict in entries:
-            resource_url = entry_dict['self_link']
-            resource_type_link = entry_dict['resource_type_link']
+            resource_url = entry_dict["self_link"]
+            resource_type_link = entry_dict["resource_type_link"]
             wadl_application = self._wadl_resource.application
             resource_type = wadl_application.get_resource_type(
-                resource_type_link)
+                resource_type_link
+            )
             resource = WadlResource(
-                self._wadl_resource.application, resource_url,
-                resource_type.tag)
+                self._wadl_resource.application,
+                resource_url,
+                resource_type.tag,
+            )
             yield Resource._create_bound_resource(
-                self._root, resource, entry_dict, self.JSON_MEDIA_TYPE,
-                False)
+                self._root, resource, entry_dict, self.JSON_MEDIA_TYPE, False
+            )
 
     def _with_url_query_variable_set(self, url, variable, new_value):
         """A helper method to set a query variable in a URL."""
@@ -1008,7 +1089,8 @@ class CollectionWithKeyBasedLookup(Collection):
             # this will save us one round trip.
             representation = None
             resource_type_link = urljoin(
-                self._root._wadl.markup_url, '#' + self.collection_of)
+                self._root._wadl.markup_url, "#" + self.collection_of
+            )
         else:
             # We don't know what kind of resource this is. Either the
             # subclass wasn't programmed with this knowledge, or
@@ -1020,7 +1102,7 @@ class CollectionWithKeyBasedLookup(Collection):
             try:
                 url_get = self._root._browser.get(url)
                 if isinstance(url_get, binary_type):
-                    url_get = url_get.decode('utf-8')                
+                    url_get = url_get.decode("utf-8")
                 representation = loads(url_get)
             except HTTPError as error:
                 # There's no resource corresponding to the given ID.
@@ -1029,12 +1111,15 @@ class CollectionWithKeyBasedLookup(Collection):
                 raise
             # We know that every lazr.restful resource has a
             # 'resource_type_link' in its representation.
-            resource_type_link = representation['resource_type_link']
+            resource_type_link = representation["resource_type_link"]
 
         resource = WadlResource(self._root._wadl, url, resource_type_link)
         return self._create_bound_resource(
-            self._root, resource, representation=representation,
-            representation_needs_processing=False)
+            self._root,
+            resource,
+            representation=representation,
+            representation_needs_processing=False,
+        )
 
     # If provided, this should be a string designating the ID of a
     # resource_type from a specific service's WADL file.
@@ -1047,35 +1132,43 @@ class CollectionWithKeyBasedLookup(Collection):
 
 class HostedFileBuffer(BytesIO):
     """The contents of a file hosted by a lazr.restful service."""
+
     def __init__(self, hosted_file, mode, content_type=None, filename=None):
         self.url = hosted_file._wadl_resource.url
-        if mode == 'r':
+        if mode == "r":
             if content_type is not None:
-                raise ValueError("Files opened for read access can't "
-                                 "specify content_type.")
+                raise ValueError(
+                    "Files opened for read access can't "
+                    "specify content_type."
+                )
             if filename is not None:
-                raise ValueError("Files opened for read access can't "
-                                 "specify filename.")
+                raise ValueError(
+                    "Files opened for read access can't " "specify filename."
+                )
             response, value = hosted_file._root._browser.get(
-                self.url, return_response=True)
-            content_type = response['content-type']
-            last_modified = response.get('last-modified')
+                self.url, return_response=True
+            )
+            content_type = response["content-type"]
+            last_modified = response.get("last-modified")
 
             # The Content-Location header contains the URL of the file
             # hosted by the web service. We happen to know that the
             # final component of the URL is the name of the uploaded
             # file.
-            content_location = response['content-location']
+            content_location = response["content-location"]
             path = urlparse(content_location)[2]
             filename = unquote(path.split("/")[-1])
-        elif mode == 'w':
-            value = ''
+        elif mode == "w":
+            value = b""
             if content_type is None:
-                raise ValueError("Files opened for write access must "
-                                 "specify content_type.")
+                raise ValueError(
+                    "Files opened for write access must "
+                    "specify content_type."
+                )
             if filename is None:
-                raise ValueError("Files opened for write access must "
-                                 "specify filename.")
+                raise ValueError(
+                    "Files opened for write access must " "specify filename."
+                )
             last_modified = None
         else:
             raise ValueError("Invalid mode. Supported modes are: r, w")
@@ -1088,11 +1181,14 @@ class HostedFileBuffer(BytesIO):
         BytesIO.__init__(self, value)
 
     def close(self):
-        if self.mode == 'w':
+        if self.mode == "w":
             disposition = 'attachment; filename="%s"' % self.filename
             self.hosted_file._root._browser.put(
-                self.url, self.getvalue(),
-                self.content_type, {'Content-Disposition': disposition})
+                self.url,
+                self.getvalue(),
+                self.content_type,
+                {"Content-Disposition": disposition},
+            )
         BytesIO.close(self)
 
     def write(self, b):

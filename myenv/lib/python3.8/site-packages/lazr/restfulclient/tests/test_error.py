@@ -22,21 +22,29 @@ __metaclass__ = type
 import unittest
 
 from lazr.restfulclient.errors import (
-    ClientError, Conflict, MethodNotAllowed, NotFound,
-    PreconditionFailed, ResponseError, ServerError, Unauthorized, error_for)
+    ClientError,
+    Conflict,
+    MethodNotAllowed,
+    NotFound,
+    PreconditionFailed,
+    ResponseError,
+    ServerError,
+    Unauthorized,
+    error_for,
+)
 
 
-class DummyRequest(object):
+class StubRequest(object):
     """Just enough of a request to fool error_for()."""
+
     def __init__(self, status):
         self.status = status
 
 
 class TestErrorFor(unittest.TestCase):
-
-    def error_for_status(self, status, expected_error, content=''):
+    def error_for_status(self, status, expected_error, content=""):
         """Make sure error_for returns the right HTTPError subclass."""
-        request = DummyRequest(status)
+        request = StubRequest(status)
         error = error_for(request, content)
         if expected_error is None:
             self.assertIsNone(error)

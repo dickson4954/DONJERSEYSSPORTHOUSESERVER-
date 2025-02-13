@@ -9,7 +9,7 @@ The BasicHttpAuthorizer
 -----------------------
 
 This authorizer handles HTTP Basic Auth. To test it, we'll create a
-fake web service that serves some dummy WADL.
+fake web service that serves some sample WADL.
 
     >>> import pkg_resources
     >>> wadl_string = pkg_resources.resource_string(
@@ -18,7 +18,7 @@ fake web service that serves some dummy WADL.
     >>> responses = { 'application/vnd.sun.wadl+xml' : wadl_string,
     ...               'application/json' : '{}' }
 
-    >>> def dummy_application(environ, start_response):
+    >>> def sample_application(environ, start_response):
     ...     media_type = environ['HTTP_ACCEPT']
     ...     content = responses[media_type]
     ...     start_response(
@@ -43,7 +43,7 @@ you'll need to provide a username of "user" and a password of
     >>> from lazr.authentication.wsgi import BasicAuthMiddleware
     >>> def protected_application():
     ...     return BasicAuthMiddleware(
-    ...         dummy_application, authenticate_with=authenticate)
+    ...         sample_application, authenticate_with=authenticate)
 
 Finally, we'll set up a WSGI intercept so that we can test the web
 service by making HTTP requests to http://api.launchpad.dev/. (This is
@@ -113,7 +113,7 @@ The OAuthAuthorizer
 -------------------
 
 This authorizer handles OAuth authorization. To test it, we'll protect
-the dummy application with a piece of OAuth middleware. The middleware
+the sample application with a piece of OAuth middleware. The middleware
 will accept only one consumer/token combination, though it will also
 allow anonymous access: if you pass in an empty token and secret,
 you'll get a lower level of access.
@@ -163,13 +163,13 @@ from the information provided in a signed OAuth request.
     ...     {valid_token.key : valid_token,
     ...      empty_token.key : empty_token})
 
-Now we're ready to protect the dummy_application with OAuthMiddleware,
+Now we're ready to protect the sample_application with OAuthMiddleware,
 using our authenticate() implementation and our data store.
 
     >>> from lazr.authentication.wsgi import OAuthMiddleware
     >>> def protected_application():
     ...     return OAuthMiddleware(
-    ...         dummy_application, realm="OAuth test",
+    ...         sample_application, realm="OAuth test",
     ...         authenticate_with=authenticate, data_store=data_store)
     >>> wsgi_intercept.add_wsgi_intercept(
     ...     'api.launchpad.dev', 80, protected_application)
@@ -266,4 +266,3 @@ they request anonymous access.
 Teardown.
 
     >>> _ = wsgi_intercept.remove_wsgi_intercept("api.launchpad.dev", 80)
-

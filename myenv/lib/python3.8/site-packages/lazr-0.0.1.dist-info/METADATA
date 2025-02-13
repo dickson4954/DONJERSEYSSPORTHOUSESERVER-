@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: lazr
+Version: 0.0.1
+Summary: A framework to easy train on pytorch
+Home-page: https://github.com/AvinsWang/lazr
+Download-URL: http://pypi.python.org/pypi/lazr/
+Author: Avins Wang
+Author-email: avinswang@gmail.com
+License: LGPL-3.0
+Keywords: lazr,deep learning
+Classifier: Topic :: Utilities
+Classifier: Natural Language :: English
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)
+Classifier: Programming Language :: Python :: 3.8
+

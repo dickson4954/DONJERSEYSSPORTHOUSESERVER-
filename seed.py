@@ -3,9 +3,8 @@ from myapp import create_app
 from myapp.models import User, Category, Product, ProductVariant, Order, OrderItem
 from myapp.extensions import db
 from datetime import datetime
-
 def seed_data():
-    # Clear existing data in reverse order to avoid foreign key constraints
+    # Clear existing data to avoid foreign key violations
     db.session.query(OrderItem).delete()
     db.session.query(Order).delete()
     db.session.query(ProductVariant).delete()
@@ -22,6 +21,11 @@ def seed_data():
     ]
     db.session.bulk_save_objects(users)
     db.session.commit()
+
+    # Fetch actual user IDs
+    admin_user = User.query.filter_by(username="admin").first()
+    john_user = User.query.filter_by(username="john_doe").first()
+    jane_user = User.query.filter_by(username="jane_doe").first()
 
     # Add categories
     categories = [
@@ -69,17 +73,17 @@ def seed_data():
     shoes_variant = ProductVariant.query.filter_by(product_id=running_shoes.id, size="42").first()
     yoga_variant = ProductVariant.query.filter_by(product_id=yoga_pants.id, size="M").first()
 
-    # Creating sample orders
+    # Create sample orders with correct user IDs
     orders = [
-        Order(user_id=2, name="John Doe", email="john@gmail.com", phone="1234567890", location="123 Main St", total_price=3000.0, created_at=datetime.utcnow()),
-        Order(user_id=3, name="Jane Doe", email="jane@gmail.com", phone="0987654321", location="456 Elm St", total_price=1500.0, created_at=datetime.utcnow()),
+        Order(user_id=john_user.id, name="John Doe", email="john@gmail.com", phone="1234567890", location="123 Main St", total_price=3000.0, created_at=datetime.utcnow()),
+        Order(user_id=jane_user.id, name="Jane Doe", email="jane@gmail.com", phone="0987654321", location="456 Elm St", total_price=1500.0, created_at=datetime.utcnow()),
     ]
     db.session.bulk_save_objects(orders)
     db.session.commit()
 
-    # Fetch order IDs
-    order1 = Order.query.first()
-    order2 = Order.query.offset(1).first()
+    # Fetch order IDs dynamically
+    order1 = Order.query.filter_by(user_id=john_user.id).first()
+    order2 = Order.query.filter_by(user_id=jane_user.id).first()
 
     # Add order items
     order_items = [
@@ -91,6 +95,7 @@ def seed_data():
     db.session.commit()
 
     print("Database seeded successfully!")
+
 
 if __name__ == "__main__":
     app = create_app()
