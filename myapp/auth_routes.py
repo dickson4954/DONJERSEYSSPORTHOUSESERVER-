@@ -30,16 +30,17 @@ def signup():
     db.session.commit()
 
     return jsonify({"message": "User registered successfully"}), 201
-
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-
+    print("Received login request:", data)  # Debug log
+    
     if not data.get('identifier') or not data.get('password'):
         return jsonify({"message": "Missing username/email or password"}), 400
 
-    # Find user by username or email
-    user = User.query.filter((User.username == data['identifier']) | (User.email == data['identifier'])).first()
+    user = User.query.filter(
+        (User.username == data['identifier']) | (User.email == data['identifier'])
+    ).first()
 
     if not user:
         return jsonify({"message": "User not found"}), 404
@@ -47,7 +48,6 @@ def login():
     if not check_password_hash(user.password_hash, data['password']):
         return jsonify({"message": "Invalid password"}), 401
 
-    # Generate JWT access token with user role
     access_token = create_access_token(identity={"id": user.id, "username": user.username, "is_admin": user.is_admin})
 
     return jsonify({
@@ -57,7 +57,7 @@ def login():
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "is_admin": user.is_admin  # Add admin status in response
+            "is_admin": user.is_admin
         }
     }), 200
 
