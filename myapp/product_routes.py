@@ -21,7 +21,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # Apply CORS to the app globally
-CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "https://dickson4954.github.io"]}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "https://dickson4954.github.io", "https://donjerseyssporthouseserver-5-cmus.onrender.com"]}}, supports_credentials=True)
+
 
 # 🔴 Force CORS Headers on Every Response
 @app.after_request
