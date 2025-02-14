@@ -258,13 +258,18 @@ def delete_product(product_id):
         if not product:
             return jsonify({"message": "Product not found"}), 404
 
+        # Delete all variants linked to this product first
+        ProductVariant.query.filter_by(product_id=product_id).delete()
+
+        # Now delete the product
         db.session.delete(product)
         db.session.commit()
 
-        return jsonify({"message": "Product deleted successfully"}), 200
+        return jsonify({"message": "Product and its variants deleted successfully!"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
 # Count products by category
 @product_bp.route('/categories', methods=['GET'])
 def count_products_by_category():
