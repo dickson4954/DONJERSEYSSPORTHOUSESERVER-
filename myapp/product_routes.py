@@ -1,7 +1,6 @@
 from flask import Flask, Blueprint, jsonify, request, abort
 from myapp.models import Product, Category, Order, OrderItem, ProductVariant, db
 
-
 from .utils import upload_image
 from datetime import datetime
 from dotenv import load_dotenv
@@ -16,16 +15,22 @@ from werkzeug.utils import secure_filename
 import cloudinary
 import cloudinary.uploader
 
-
-
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Apply CORS to the app globally
-CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "https://dickson4954.github.io"]}},supports_credentials=True )
+CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "https://dickson4954.github.io"]}}, supports_credentials=True)
 
+# 🔴 Force CORS Headers on Every Response
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "https://dickson4954.github.io"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
 
 # cloudinary.config(
 #     cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
@@ -33,9 +38,8 @@ CORS(app, resources={r"/*": {"origins": ["http://localhost:3000", "https://dicks
 #     api_secret=app.config['CLOUDINARY_API_SECRET']
 # )
 
-
-
 product_bp = Blueprint('products', __name__)
+
 
 
 # GET all products with variants
