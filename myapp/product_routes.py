@@ -24,7 +24,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # Apply CORS to the app globally
-CORS(app, origins=["http://localhost:3000"])
+CORS(app, resources={r"/*": {"origins": "https://dickson4954.github.io"}})
+
 
 # cloudinary.config(
 #     cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
