@@ -251,14 +251,20 @@ def update_product(id):
 
     db.session.commit()
     return jsonify({"message": "Product updated successfully!"})
-# DELETE a product and its variants
-@product_bp.route('/products/<int:id>', methods=['DELETE'])
-def delete_product(id):
-    product = Product.query.get_or_404(id)
-    db.session.delete(product)
-    db.session.commit()
-    return jsonify({"message": "Product and its variants deleted successfully!"})
+@product_bp.route('/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    try:
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({"message": "Product not found"}), 404
 
+        db.session.delete(product)
+        db.session.commit()
+
+        return jsonify({"message": "Product deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 # Count products by category
 @product_bp.route('/categories', methods=['GET'])
 def count_products_by_category():
