@@ -1,7 +1,6 @@
 from flask import Flask, Blueprint, jsonify, request, abort
 from myapp.models import Product, Category, Order, OrderItem, ProductVariant, db
 
-
 from .utils import upload_image
 from datetime import datetime
 from dotenv import load_dotenv
@@ -16,15 +15,23 @@ from werkzeug.utils import secure_filename
 import cloudinary
 import cloudinary.uploader
 
-
-
 load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Apply CORS to the app globally
-CORS(app, origins=["http://localhost:3000"])
+CORS(app, resources={r"/*": {"origins": ["https://dickson4954.github.io"]}}, supports_credentials=True)
+
+
+# 🔴 Force CORS Headers on Every Response
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "https://dickson4954.github.io"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
 
 # cloudinary.config(
 #     cloud_name=app.config['CLOUDINARY_CLOUD_NAME'],
@@ -32,9 +39,8 @@ CORS(app, origins=["http://localhost:3000"])
 #     api_secret=app.config['CLOUDINARY_API_SECRET']
 # )
 
-
-
 product_bp = Blueprint('products', __name__)
+
 
 
 # GET all products with variants
@@ -245,13 +251,24 @@ def update_product(id):
 
     db.session.commit()
     return jsonify({"message": "Product updated successfully!"})
-# DELETE a product and its variants
-@product_bp.route('/products/<int:id>', methods=['DELETE'])
-def delete_product(id):
-    product = Product.query.get_or_404(id)
-    db.session.delete(product)
-    db.session.commit()
-    return jsonify({"message": "Product and its variants deleted successfully!"})
+@product_bp.route('/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    try:
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({"message": "Product not found"}), 404
+
+        # Delete all variants linked to this product first
+        ProductVariant.query.filter_by(product_id=product_id).delete()
+
+        # Now delete the product
+        db.session.delete(product)
+        db.session.commit()
+
+        return jsonify({"message": "Product and its variants deleted successfully!"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 # Count products by category
 @product_bp.route('/categories', methods=['GET'])
