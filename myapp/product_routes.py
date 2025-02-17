@@ -508,8 +508,8 @@ def create_order():
 
 
 def get_mpesa_access_token():
-    consumer_key = 'Pg578muqGU0hxW8gzaRGkczrGyquSOOQLd4XvnWUNBqHnsjQ'
-    consumer_secret = 'UDQHV6hY2cpo5JGQhfBKZOgXLSHNX6jNRd6UPB5ZmxU7QfhcAG9YIZvCRAptXVAw'
+    consumer_key = 'SjVJTzVgkJnNxNG8CllAcPcMj4W7I4pKNPJcArcrniD5D3Mm'
+    consumer_secret = 'uH7v3PjjZkw8DsrejlETeCUsja07csu3PHnStFJIE4bA8fA4rhSwdwF9YQGoPgAU'
     api_url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
     response = requests.get(api_url, auth=HTTPBasicAuth(consumer_key, consumer_secret))
     print("Access Token Response:", response.text)  # Debugging line
