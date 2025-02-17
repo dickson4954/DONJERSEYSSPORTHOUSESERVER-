@@ -564,7 +564,7 @@ def initiate_payment(phone_number, amount):
             'PartyA': phone_number,
             'PartyB': short_code,
             'PhoneNumber': phone_number,
-            'CallBackURL': 'https://6da8-105-163-156-47.ngrok-free.app/callback',  # Update this with your callback URL
+            'CallBackURL': 'https://donjerseyssporthouseserver-5-cmus.onrender.com/callback',  # Update this with your callback URL
             'AccountReference': phone_number,
             'TransactionDesc': 'Payment for service',
         }
