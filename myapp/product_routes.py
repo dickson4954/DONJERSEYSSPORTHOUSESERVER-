@@ -382,10 +382,10 @@ def upload_image():
 @product_bp.route('/orders', methods=['GET'])
 def get_orders():
     try:
-        current_app.logger.info("Fetching all orders...")
+        # current_app.logger.info("Fetching all orders...")
         orders = Order.query.all()
         if not orders:
-            current_app.logger.warning("No orders found.")
+            # current_app.logger.warning("No orders found.")
             return jsonify([]), 200
 
         orders_data = []
@@ -411,9 +411,6 @@ def get_orders():
                     "phone": order.phone,
                     "location": order.location,
                     "region": order.region or 'N/A',  # Ensure 'region' is never None
-                    "postal_code": order.postal_code,
-                    "county": order.county,
-                    "apartment": order.apartment,
                     "total_price": order.total_price,
                     "payment_status": order.payment_status,
                     "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -452,9 +449,6 @@ def get_order_by_id(id):
         "phone": order.phone,
         "location": order.location,
         "region": order.region or 'N/A',  # Ensure 'region' is never None
-        "postal_code": order.postal_code,
-        "county": order.county,
-        "apartment": order.apartment,
         "total_price": order.total_price,
         "payment_status": order.payment_status,
         "created_at": order.created_at.isoformat(),
