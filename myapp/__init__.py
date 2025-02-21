@@ -15,7 +15,7 @@ def create_app():
     migrate.init_app(app, db)
     
     # Configure CORS to allow requests from frontend
-    CORS(app, resources={r"/*": {"origins": [ "https://dickson4954.github.io", "http://localhost:3000"]}},
+    CORS(app, resources={r"/*": {"origins": [ "https://dickson4954.github.io", "http://localhost:5000"]}},
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization"],
      supports_credentials=True)
