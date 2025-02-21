@@ -74,27 +74,41 @@ def seed_data():
     yoga_variant = ProductVariant.query.filter_by(product_id=yoga_pants.id, size="M").first()
 
     # Create sample orders with correct user IDs
+   
+
+# Create sample orders with correct user IDs and id_number
     orders = [
-        Order(user_id=john_user.id, name="John Doe", email="john@gmail.com", phone="1234567890", location="123 Main St", total_price=3000.0, created_at=datetime.utcnow()),
-        Order(user_id=jane_user.id, name="Jane Doe", email="jane@gmail.com", phone="0987654321", location="456 Elm St", total_price=1500.0, created_at=datetime.utcnow()),
-    ]
+    Order(user_id=john_user.id, name="John Doe", phone="1234567890", location="123 Main St", region="Nairobi", id_number="1234567890", total_price=3000.0, created_at=datetime.utcnow()),
+    Order(user_id=jane_user.id, name="Jane Doe", phone="0987654321", location="456 Elm St", region="Mombasa", id_number="0987654321", total_price=1500.0, created_at=datetime.utcnow()),
+]
+
     db.session.bulk_save_objects(orders)
     db.session.commit()
 
-    # Fetch order IDs dynamically
+# Fetch order IDs dynamically
     order1 = Order.query.filter_by(user_id=john_user.id).first()
     order2 = Order.query.filter_by(user_id=jane_user.id).first()
 
-    # Add order items
+# Add order items
     order_items = [
-        OrderItem(order_id=order1.id, product_variant_id=jersey_variant.id, quantity=2, unit_price=1500, size="L", edition="Fan Edition"),
-        OrderItem(order_id=order1.id, product_variant_id=shoes_variant.id, quantity=1, unit_price=2000, size="42", edition="Standard"),
-        OrderItem(order_id=order2.id, product_variant_id=yoga_variant.id, quantity=1, unit_price=1500, size="M", edition="Fan Edition"),
-    ]
+    OrderItem(order_id=order1.id, product_variant_id=jersey_variant.id, quantity=2, unit_price=1500, size="L", edition="Fan Edition"),
+    OrderItem(order_id=order1.id, product_variant_id=shoes_variant.id, quantity=1, unit_price=2000, size="42", edition="Standard"),
+    OrderItem(order_id=order2.id, product_variant_id=yoga_variant.id, quantity=1, unit_price=1500, size="M", edition="Fan Edition"),
+]
     db.session.bulk_save_objects(order_items)
     db.session.commit()
 
-    print("Database seeded successfully!")
+# Update the stock after order item creation
+   # Update the stock after order item creation
+    for order_item in order_items:
+        product_variant = db.session.get(ProductVariant, order_item.product_variant_id)
+    if product_variant:
+        product_variant.stock -= order_item.quantity
+    db.session.commit()
+
+
+print("Database seeded and stock updated successfully!")
+
 
 
 if __name__ == "__main__":

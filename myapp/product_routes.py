@@ -377,35 +377,55 @@ def upload_image():
 
 
 
+
+# GET all orders
 @product_bp.route('/orders', methods=['GET'])
 def get_orders():
-    orders = Order.query.all()
-    
-    orders_data = []
-    for order in orders:
-        order_items = [{
-            "id": item.id,
-            "product_variant_id": item.product_variant_id,
-            "quantity": item.quantity,
-            "unit_price": item.unit_price,
-            "size": item.size,
-            "edition": item.edition
-        } for item in order.items]
-        
-        orders_data.append({
-            "id": order.id,
-            "user_id": order.user_id,
-            "name": order.name,
-            "email": order.email,
-            "phone": order.phone,
-            "location": order.location,
-            "total_price": order.total_price,
-            "payment_status": order.payment_status,
-            "created_at": order.created_at.isoformat(),
-            "items": order_items
-        })
-    
-    return jsonify(orders_data)
+    try:
+        current_app.logger.info("Fetching all orders...")
+        orders = Order.query.all()
+        if not orders:
+            current_app.logger.warning("No orders found.")
+            return jsonify([]), 200
+
+        orders_data = []
+        for order in orders:
+            try:
+                order_items = [{
+                    "id": item.id,
+                    "product_variant_id": item.product_variant_id,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "size": item.size,
+                    "edition": item.edition,
+                    "custom_name": item.custom_name,
+                    "custom_number": item.custom_number,
+                    "badge": item.badge,
+                    "font_type": item.font_type
+                } for item in order.items]
+
+                orders_data.append({
+                    "id": order.id,
+                    "user_id": order.user_id,
+                    "name": order.name,
+                    "phone": order.phone,
+                    "location": order.location,
+                    "region": order.region or 'N/A',  # Ensure 'region' is never None
+                    "postal_code": order.postal_code,
+                    "county": order.county,
+                    "apartment": order.apartment,
+                    "total_price": order.total_price,
+                    "payment_status": order.payment_status,
+                    "created_at": order.created_at.isoformat() if order.created_at else None,
+                    "items": order_items
+                })
+            except Exception as order_error:
+                current_app.logger.error(f"Error processing order {order.id}: {str(order_error)}")
+
+        return jsonify(orders_data), 200
+    except Exception as e:
+        current_app.logger.error(f"Error fetching orders: {str(e)}")
+        return jsonify({'success': False, 'message': 'Internal server error.'}), 500
 
 # GET a single order by ID
 @product_bp.route('/orders/<int:id>', methods=['GET'])
@@ -418,16 +438,23 @@ def get_order_by_id(id):
         "quantity": item.quantity,
         "unit_price": item.unit_price,
         "size": item.size,
-        "edition": item.edition
+        "edition": item.edition,
+        "custom_name": item.custom_name,
+        "custom_number": item.custom_number,
+        "badge": item.badge,
+        "font_type": item.font_type
     } for item in order.items]
 
     order_data = {
         "id": order.id,
         "user_id": order.user_id,
         "name": order.name,
-        "email": order.email,
         "phone": order.phone,
         "location": order.location,
+        "region": order.region or 'N/A',  # Ensure 'region' is never None
+        "postal_code": order.postal_code,
+        "county": order.county,
+        "apartment": order.apartment,
         "total_price": order.total_price,
         "payment_status": order.payment_status,
         "created_at": order.created_at.isoformat(),
@@ -436,79 +463,101 @@ def get_order_by_id(id):
 
     return jsonify(order_data)
 
-# POST a new order with variants
+# CREATE ORDER
 @product_bp.route('/orders', methods=['POST'])
 def create_order():
-    data = request.json
-    cart = data.get('cart', [])
-    delivery_details = data.get('delivery_details', {})
-    total_price = data.get('total_price', 0)
+    try:
+        data = request.json
+        print("Received Order Data:", data)  # Debugging log
 
-    # Check if cart or delivery details are missing
-    if not cart or not delivery_details:
-        return jsonify({'success': False, 'message': 'Cart or delivery details are missing.'}), 400
+        if not data:
+            return jsonify({'success': False, 'message': 'No data received.'}), 400
 
-    # Extract delivery details
-    name = delivery_details.get('name')
-    email = delivery_details.get('email')
-    phone = delivery_details.get('phone')
-    location = delivery_details.get('location')
+        cart = data.get('cart', [])
+        shipping_details = data.get('shipping_details', {})
+        total_price = data.get('total_price', 0)
 
-    # Validate required delivery details
-    if not all([name, phone, location]):
-        return jsonify({'success': False, 'message': 'All delivery details are required.'}), 400
+        if not cart or not shipping_details:
+            return jsonify({'success': False, 'message': 'Cart or shipping details are missing.'}), 400
 
-    # Create an Order instance
-    order = Order(
-        user_id=None,  # Update this if linking to authenticated users
-        name=name,
-        email=email,
-        phone=phone,
-        location=location,
-        total_price=total_price,
-        payment_status='Pending'  # Initial status
-    )
-    db.session.add(order)
-    db.session.commit()  # Commit to generate the order ID
+        # Extract required shipping details
+            # Extract required shipping details
+        name = shipping_details.get('name', '').strip()
+        phone = shipping_details.get('phone', '').strip()
+        location = shipping_details.get('location', '').strip()
+        region = (shipping_details.get('region') or 'N/A').strip()
 
-    # Add each item as an OrderItem linked to the Order
-    order_items = []
-    for item in cart:
-        variant_id = item.get('variant_id')
-        quantity = item.get('quantity', 1)
+        id_number = shipping_details.get('id_number', '').strip()  # Get id_number
 
-        # Check if variant_id is provided
-        if not variant_id:
-            return jsonify({'success': False, 'message': 'Variant ID is required for each cart item.'}), 400
 
-        # Fetch product variant from the database
-        variant = ProductVariant.query.get(variant_id)
-        if not variant:
-            return jsonify({'success': False, 'message': f"Variant with ID {variant_id} not found."}), 404
+        # Optional fields
+        postal_code = shipping_details.get('postal_code')
+        county = shipping_details.get('county')
+        apartment = shipping_details.get('apartment')
 
-        # Check if stock is available
-        if quantity > variant.stock:
-            return jsonify({'success': False, 'message': f"Quantity for variant ID {variant_id} exceeds stock."}), 400
+        # Validate required fields
+        required_fields = {"name": name, "phone": phone, "location": location, "region": region}
+        missing_fields = [field for field, value in required_fields.items() if not value]
 
-        # Deduct stock from the product variant
-        variant.stock -= quantity
+        if missing_fields:
+            return jsonify({'success': False, 'message': f'Missing fields: {", ".join(missing_fields)}'}), 400
 
-        # Create OrderItem instance
-        order_item = OrderItem(
-            order_id=order.id,
-            product_variant_id=variant.id,
-            quantity=quantity,
-            unit_price=variant.product.price,
-            size=variant.size,
-            edition=variant.edition
+       # Create the order
+        order = Order(
+            user_id=None,
+            name=name,
+            phone=phone,
+            location=location,
+            region=region,
+            id_number=id_number,  # Add id_number here
+            total_price=total_price,
+            payment_status='Pending'
         )
-        order_items.append(order_item)
 
-    # Bulk save order items and commit to the database
-    db.session.bulk_save_objects(order_items)
-    db.session.commit()
+        db.session.add(order)
+        db.session.commit()  # Commit to get the order ID
 
-    return jsonify({'success': True, 'order_id': order.id}), 201
+        order_items = []
+        for item in cart:
+            product_variant_id = item.get('variant_id')  # Use the correct key
+
+            quantity = item.get('quantity', 1)
+
+            if not product_variant_id:
+                return jsonify({'success': False, 'message': 'Product Variant ID is required for each item.'}), 400
+
+            variant = ProductVariant.query.get(product_variant_id)
+            if not variant:
+                return jsonify({'success': False, 'message': f"Variant with ID {product_variant_id} not found."}), 404
+
+            if quantity > variant.stock:
+                return jsonify({'success': False, 'message': f"Only {variant.stock} items available for variant ID {product_variant_id}."}), 400
+
+            # Reduce stock only if the order goes through successfully
+            variant.stock -= quantity
+
+            order_item = OrderItem(
+                order_id=order.id,
+                product_variant_id=variant.id,
+                quantity=quantity,
+                unit_price=variant.product.price,
+                size=variant.size,
+                edition=variant.edition,
+                custom_name=item.get('custom_name', ''),
+                custom_number=item.get('custom_number', ''),
+                badge=item.get('badge', ''),
+                font_type=item.get('font_type', '')
+            )
+            order_items.append(order_item)
+
+        db.session.bulk_save_objects(order_items)
+        db.session.commit()
+
+        return jsonify({'success': True, 'order_id': order.id}), 201
+
+    except Exception as e:
+        current_app.logger.error(f"Error creating order: {str(e)}")
+        return jsonify({'success': False, 'message': 'Internal server error.'}), 500
 
 
     # Initiate M-Pesa payment if required
@@ -604,12 +653,8 @@ def pay():
             return jsonify({'error': 'Failed to initiate payment', 'details': response}), 500
 
         # Return response containing CheckoutRequestID
-        return jsonify(response)
-
+        return jsonify({'CheckoutRequestID': response['CheckoutRequestID']}), 200
     except Exception as e:
-        print(f"Error in /pay route: {str(e)}")  # Debugging line
-        return jsonify({'error': 'Internal server error'}), 500
-app.register_blueprint(product_bp)  # REGISTER BLUEPRINT HERE
-
+        return jsonify({'error': str(e)}), 500
 if __name__ == "__main__":
     app.run(debug=True)  # Enable debug mode

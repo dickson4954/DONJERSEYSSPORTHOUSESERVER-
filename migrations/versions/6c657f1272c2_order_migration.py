@@ -1,8 +1,8 @@
-"""Recreating migrations for PostgreSQL
+"""order migration
 
-Revision ID: d4fc5931437b
+Revision ID: 6c657f1272c2
 Revises: 
-Create Date: 2025-02-13 18:28:48.683582
+Create Date: 2025-02-21 16:53:24.044356
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd4fc5931437b'
+revision = '6c657f1272c2'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -28,7 +28,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('username', sa.String(length=80), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
-    sa.Column('password_hash', sa.String(length=128), nullable=False),
+    sa.Column('password_hash', sa.String(length=256), nullable=False),
     sa.Column('is_admin', sa.Boolean(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
@@ -38,12 +38,12 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('email', sa.String(length=255), nullable=True),
     sa.Column('phone', sa.String(length=20), nullable=False),
     sa.Column('location', sa.String(length=255), nullable=False),
+    sa.Column('id_number', sa.String(length=50), nullable=False),
+    sa.Column('region', sa.String(length=255), nullable=False),
     sa.Column('total_price', sa.Float(), nullable=False),
     sa.Column('payment_status', sa.String(length=50), nullable=False),
-    sa.Column('checkout_request_id', sa.String(length=255), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')

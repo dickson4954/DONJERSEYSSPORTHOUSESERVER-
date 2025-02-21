@@ -88,33 +88,33 @@ class ProductVariant(db.Model):
             "font_type": self.font_type
         }
 
-    
 class Order(db.Model):
     __tablename__ = 'orders'
-    
-    id = db.Column(db.Integer, primary_key=True)
+
+    id = db.Column(db.Integer, primary_key=True)  # ✅ Primary key
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     name = db.Column(db.String(255), nullable=False)
-    email = db.Column(db.String(255), nullable=True)
     phone = db.Column(db.String(20), nullable=False)
     location = db.Column(db.String(255), nullable=False)
+    id_number = db.Column(db.String(50), nullable=False)  # New field for ID number
+    region = db.Column(db.String(255), nullable=False)  # New field for Region
     total_price = db.Column(db.Float, nullable=False)
     payment_status = db.Column(db.String(50), nullable=False, default="Pending")
-    checkout_request_id = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    items = db.relationship('OrderItem', backref='order', lazy=True)
+
+    items = db.relationship('OrderItem', backref='order', lazy='joined')
 
     def to_dict(self):
         return {
             "id": self.id,
             "user_id": self.user_id,
             "name": self.name,
-            "email": self.email,
             "phone": self.phone,
             "location": self.location,
-            "payment_status": self.payment_status,
+            "id_number": self.id_number,
+            "region": self.region,
             "total_price": self.total_price,
+            "payment_status": self.payment_status,
             "created_at": self.created_at.isoformat(),
             "items": [item.to_dict() for item in self.items]
         }
@@ -150,3 +150,4 @@ class OrderItem(db.Model):
             "badge": self.badge,
             "font_type": self.font_type
         }
+
