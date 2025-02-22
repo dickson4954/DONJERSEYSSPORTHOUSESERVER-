@@ -456,7 +456,6 @@ def get_order_by_id(id):
 
     return jsonify(order_data)
 
-# CREATE ORDER
 @product_bp.route('/orders', methods=['POST'])
 def create_order():
     try:
@@ -476,36 +475,32 @@ def create_order():
         print("Shipping Details:", shipping_details)
         print("Cart:", cart)
 
+        # Validate required fields
         if not cart or not shipping_details:
             return jsonify({'success': False, 'message': 'Cart or shipping details are missing.'}), 400
 
-        # Extract shipping details
-        name = shipping_details.get('name', '').strip()
-        phone = shipping_details.get('phone', '').strip()
-        location = shipping_details.get('location', '').strip()
-        region = (shipping_details.get('region') or 'N/A').strip()
-        id_number = shipping_details.get('id_number', '').strip()  # Add id_number
+        # Validate cart items
+        for item in cart:
+            if not all(k in item for k in ('name', 'quantity', 'price')):
+                return jsonify({'success': False, 'message': 'Each cart item must include name, quantity, and price.'}), 400
 
-        # Optional fields
-        postal_code = shipping_details.get('postal_code', '')
-        county = shipping_details.get('county', '')
-        apartment = shipping_details.get('apartment', '')
-
-        # Validate required fields
-        required_fields = {"name": name, "phone": phone, "location": location, "region": region}
-        missing_fields = [field for field, value in required_fields.items() if not value]
-
+        # Validate shipping details
+        required_shipping_fields = ['name', 'phone', 'location', 'region']
+        missing_fields = [field for field in required_shipping_fields if field not in shipping_details]
         if missing_fields:
-            return jsonify({'success': False, 'message': f'Missing fields: {", ".join(missing_fields)}'}), 400
+            return jsonify({'success': False, 'message': f'Missing shipping fields: {", ".join(missing_fields)}'}), 400
+
+        # Validate total_price
+        if not isinstance(total_price, (int, float)) or total_price <= 0:
+            return jsonify({'success': False, 'message': 'Invalid total_price. It must be a positive number.'}), 400
 
         # Create the order
         order = Order(
             user_id=None,
-            name=name,
-            phone=phone,
-            location=location,
-            region=region,
-            id_number=id_number,  # Add id_number here
+            name=shipping_details['name'],
+            phone=shipping_details['phone'],
+            location=shipping_details['location'],
+            region=shipping_details['region'],
             total_price=total_price,
             payment_status='Pending'
         )
@@ -513,65 +508,31 @@ def create_order():
         db.session.add(order)
         db.session.commit()  # Commit to get the order ID
 
+        # Create order items
         order_items = []
         for item in cart:
-            product_variant_id = item.get('product_variant_id')
-
-            # Ensure product_variant_id is a valid integer
-            try:
-                product_variant_id = int(product_variant_id)
-            except (ValueError, TypeError):
-                return jsonify({'success': False, 'message': f"Invalid product_variant_id: {item.get('product_variant_id')}"}), 400
-
-            # Check if the product_variant_id is 1 (or your placeholder value)
-            if product_variant_id == 1:
-                # Map it to a valid product_variant_id, for example, the first product variant in the database
-                variant = ProductVariant.query.first()
-                if not variant:
-                    return jsonify({'success': False, 'message': "No valid product variant available."}), 404
-                product_variant_id = variant.id  # Map to the first valid variant
-
-            # Fetch the variant by ID
-            variant = ProductVariant.query.get(product_variant_id)
-            if not variant:
-                return jsonify({'success': False, 'message': f"Variant with ID {product_variant_id} not found."}), 404
-
-            # Validate stock availability
-            quantity = item.get('quantity', 1)
-            if quantity > variant.stock:
-                return jsonify({'success': False, 'message': f"Only {variant.stock} items available for variant ID {product_variant_id}."}), 400
-
-            # Reduce stock after validating and committing the order
-            variant.stock -= quantity
-
-            # Ensure custom fields are not empty strings
-            custom_name = item.get('custom_name', '')
-            custom_number = item.get('custom_number', '')
-            badge = item.get('badge', '')
-            font_type = item.get('font_type', '')
-
             order_item = OrderItem(
                 order_id=order.id,
-                product_variant_id=variant.id,
-                quantity=quantity,
-                unit_price=variant.product.price,
-                size=variant.size,
-                edition=variant.edition,
-                custom_name=custom_name if custom_name else None,
-                custom_number=custom_number if custom_number else None,
-                badge=badge if badge else None,
-                font_type=font_type if font_type else None
+                product_name=item['name'],
+                quantity=item['quantity'],
+                unit_price=item['price'],
+                size=item.get('size', 'N/A'),
+                edition=item.get('edition', 'N/A'),
+                custom_name=item.get('customName', ''),
+                custom_number=item.get('customNumber', ''),
+                badge=item.get('badge', ''),
+                font_type=item.get('fontType', '')
             )
             order_items.append(order_item)
 
-        # Save all order items to the database
         db.session.bulk_save_objects(order_items)
         db.session.commit()
 
         return jsonify({'success': True, 'order_id': order.id}), 201
 
     except Exception as e:
-        current_app.logger.error(f"Error creating order: {str(e)}")
+        print("Error creating order:", str(e))  # Debugging log
+        db.session.rollback()
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
 def delete_order(order_id):
@@ -670,23 +631,37 @@ def pay():
         # Get data from the request body
         data = request.get_json()
 
-        # Ensure that both phone_number and amount are provided
-        phone_number = data.get('phone_number')
-        amount = data.get('amount')
-
-        if not phone_number or not amount:
+        # Validate required fields
+        if not data or 'phone_number' not in data or 'amount' not in data:
             return jsonify({'error': 'Phone number and amount are required'}), 400
+
+        phone_number = data['phone_number']
+        amount = data['amount']
+
+        # Validate phone number format
+        if not phone_number.startswith('254') and not phone_number.startswith('0'):
+            return jsonify({'error': 'Invalid phone number format. Use 254 or 0 prefix.'}), 400
+
+        # Convert phone number to 254 format if it starts with 0
+        if phone_number.startswith('0'):
+            phone_number = '254' + phone_number[1:]
+
+        # Validate amount
+        if not isinstance(amount, (int, float)) or amount <= 0:
+            return jsonify({'error': 'Amount must be a positive number.'}), 400
 
         # Initiate payment
         response = initiate_payment(phone_number, amount)
 
-        # Check if the response from initiate_payment contains 'CheckoutRequestID'
+        # Check if the response contains 'CheckoutRequestID'
         if 'CheckoutRequestID' not in response:
             return jsonify({'error': 'Failed to initiate payment', 'details': response}), 500
 
         # Return response containing CheckoutRequestID
         return jsonify({'CheckoutRequestID': response['CheckoutRequestID']}), 200
+
     except Exception as e:
+        print("Error initiating payment:", str(e))  # Debugging log
         return jsonify({'error': str(e)}), 500
 if __name__ == "__main__":
     app.run(debug=True)  # Enable debug mode
