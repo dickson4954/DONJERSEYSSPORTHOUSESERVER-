@@ -1,5 +1,7 @@
 from flask import Flask, Blueprint, jsonify, request, abort
 from myapp.models import Product, Category, Order, OrderItem, ProductVariant, db
+from flask import current_app
+
 
 from .utils import upload_image
 from datetime import datetime
@@ -376,16 +378,12 @@ def upload_image():
 #     return send_from_directory(UPLOAD_FOLDER, filename)
 
 
-
-
 # GET all orders
 @product_bp.route('/orders', methods=['GET'])
 def get_orders():
     try:
-        # current_app.logger.info("Fetching all orders...")
         orders = Order.query.all()
         if not orders:
-            # current_app.logger.warning("No orders found.")
             return jsonify([]), 200
 
         orders_data = []
@@ -410,7 +408,7 @@ def get_orders():
                     "name": order.name,
                     "phone": order.phone,
                     "location": order.location,
-                    "region": order.region or 'N/A',  # Ensure 'region' is never None
+                    "region": order.region or 'N/A',
                     "total_price": order.total_price,
                     "payment_status": order.payment_status,
                     "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -423,6 +421,7 @@ def get_orders():
     except Exception as e:
         current_app.logger.error(f"Error fetching orders: {str(e)}")
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
+
 
 # GET a single order by ID
 @product_bp.route('/orders/<int:id>', methods=['GET'])
@@ -448,7 +447,7 @@ def get_order_by_id(id):
         "name": order.name,
         "phone": order.phone,
         "location": order.location,
-        "region": order.region or 'N/A',  # Ensure 'region' is never None
+        "region": order.region or 'N/A',
         "total_price": order.total_price,
         "payment_status": order.payment_status,
         "created_at": order.created_at.isoformat(),
@@ -461,33 +460,36 @@ def get_order_by_id(id):
 @product_bp.route('/orders', methods=['POST'])
 def create_order():
     try:
+        # Parse incoming JSON request
         data = request.json
         print("Received Order Data:", data)  # Debugging log
 
         if not data:
             return jsonify({'success': False, 'message': 'No data received.'}), 400
 
+        # Extract cart and shipping details
         cart = data.get('cart', [])
         shipping_details = data.get('shipping_details', {})
         total_price = data.get('total_price', 0)
 
+        # Debugging logs
+        print("Shipping Details:", shipping_details)
+        print("Cart:", cart)
+
         if not cart or not shipping_details:
             return jsonify({'success': False, 'message': 'Cart or shipping details are missing.'}), 400
 
-        # Extract required shipping details
-            # Extract required shipping details
+        # Extract shipping details
         name = shipping_details.get('name', '').strip()
         phone = shipping_details.get('phone', '').strip()
         location = shipping_details.get('location', '').strip()
         region = (shipping_details.get('region') or 'N/A').strip()
-
-        id_number = shipping_details.get('id_number', '').strip()  # Get id_number
-
+        id_number = shipping_details.get('id_number', '').strip()  # Add id_number
 
         # Optional fields
-        postal_code = shipping_details.get('postal_code')
-        county = shipping_details.get('county')
-        apartment = shipping_details.get('apartment')
+        postal_code = shipping_details.get('postal_code', '')
+        county = shipping_details.get('county', '')
+        apartment = shipping_details.get('apartment', '')
 
         # Validate required fields
         required_fields = {"name": name, "phone": phone, "location": location, "region": region}
@@ -496,7 +498,7 @@ def create_order():
         if missing_fields:
             return jsonify({'success': False, 'message': f'Missing fields: {", ".join(missing_fields)}'}), 400
 
-       # Create the order
+        # Create the order
         order = Order(
             user_id=None,
             name=name,
@@ -513,22 +515,40 @@ def create_order():
 
         order_items = []
         for item in cart:
-            product_variant_id = item.get('variant_id')  # Use the correct key
+            product_variant_id = item.get('product_variant_id')
 
-            quantity = item.get('quantity', 1)
+            # Ensure product_variant_id is a valid integer
+            try:
+                product_variant_id = int(product_variant_id)
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'message': f"Invalid product_variant_id: {item.get('product_variant_id')}"}), 400
 
-            if not product_variant_id:
-                return jsonify({'success': False, 'message': 'Product Variant ID is required for each item.'}), 400
+            # Check if the product_variant_id is 1 (or your placeholder value)
+            if product_variant_id == 1:
+                # Map it to a valid product_variant_id, for example, the first product variant in the database
+                variant = ProductVariant.query.first()
+                if not variant:
+                    return jsonify({'success': False, 'message': "No valid product variant available."}), 404
+                product_variant_id = variant.id  # Map to the first valid variant
 
+            # Fetch the variant by ID
             variant = ProductVariant.query.get(product_variant_id)
             if not variant:
                 return jsonify({'success': False, 'message': f"Variant with ID {product_variant_id} not found."}), 404
 
+            # Validate stock availability
+            quantity = item.get('quantity', 1)
             if quantity > variant.stock:
                 return jsonify({'success': False, 'message': f"Only {variant.stock} items available for variant ID {product_variant_id}."}), 400
 
-            # Reduce stock only if the order goes through successfully
+            # Reduce stock after validating and committing the order
             variant.stock -= quantity
+
+            # Ensure custom fields are not empty strings
+            custom_name = item.get('custom_name', '')
+            custom_number = item.get('custom_number', '')
+            badge = item.get('badge', '')
+            font_type = item.get('font_type', '')
 
             order_item = OrderItem(
                 order_id=order.id,
@@ -537,13 +557,14 @@ def create_order():
                 unit_price=variant.product.price,
                 size=variant.size,
                 edition=variant.edition,
-                custom_name=item.get('custom_name', ''),
-                custom_number=item.get('custom_number', ''),
-                badge=item.get('badge', ''),
-                font_type=item.get('font_type', '')
+                custom_name=custom_name if custom_name else None,
+                custom_number=custom_number if custom_number else None,
+                badge=badge if badge else None,
+                font_type=font_type if font_type else None
             )
             order_items.append(order_item)
 
+        # Save all order items to the database
         db.session.bulk_save_objects(order_items)
         db.session.commit()
 
@@ -552,6 +573,23 @@ def create_order():
     except Exception as e:
         current_app.logger.error(f"Error creating order: {str(e)}")
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
+@app.route('/orders/<int:order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({'message': 'Order not found'}), 404
+
+    try:
+        db.session.delete(order)
+        db.session.commit()
+        return jsonify({'message': 'Order deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Error deleting order: {str(e)}'}), 500
+
+
+
+
 
 
     # Initiate M-Pesa payment if required
