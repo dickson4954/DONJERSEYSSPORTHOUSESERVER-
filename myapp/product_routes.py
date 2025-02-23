@@ -498,9 +498,9 @@ def create_order():
 
         # Validate cart items
         for item in cart:
-            if 'quantity' not in item or 'price' not in item:
-                print(f"Error: Missing quantity or price in cart item: {item}")
-                return jsonify({'success': False, 'message': 'Each cart item must include quantity and price.'}), 400
+            if 'quantity' not in item or 'price' not in item or 'name' not in item:
+                print(f"Error: Missing quantity, price, or name in cart item: {item}")
+                return jsonify({'success': False, 'message': 'Each cart item must include quantity, price, and name.'}), 400
 
         # If everything is correct, proceed to create order
         print("Creating order...")
@@ -520,8 +520,17 @@ def create_order():
         # Create order items
         for item in cart:
             print(f"Processing item: {item.get('name', 'Unnamed Item')}")
+
+            # Fetch the product by name to get the product_id
+            product = Product.query.filter_by(name=item['name']).first()
+            if not product:
+                print(f"Error: Product '{item['name']}' not found.")
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f"Product '{item['name']}' not found."}), 404
+
             order_item = OrderItem(
                 order_id=order.id,  # Link to the order
+                product_id=product.id,  # Include the product_id
                 quantity=item['quantity'],
                 unit_price=item['price'],
                 size=item.get('size', 'N/A'),
