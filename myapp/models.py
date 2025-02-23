@@ -49,6 +49,7 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     variants = db.relationship('ProductVariant', backref='product', lazy=True)
+    order_items = db.relationship('OrderItem', backref='product')  # Renamed to avoid conflict
 
     def to_dict(self):
         return {
@@ -64,7 +65,6 @@ class Product(db.Model):
             "sizes": list(set(variant.size for variant in self.variants)),  # Unique sizes list
             "variants": [variant.to_dict() for variant in self.variants]
         }
-
 class ProductVariant(db.Model):
     __tablename__ = 'product_variants'
     
@@ -96,7 +96,7 @@ class Order(db.Model):
     name = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
     location = db.Column(db.String(255), nullable=False)
-    id_number = db.Column(db.String(50), nullable=False)  # New field for ID number
+    id_number = db.Column(db.String(50), nullable=True)  # New field for ID number
     region = db.Column(db.String(255), nullable=False)  # New field for Region
     total_price = db.Column(db.Float, nullable=False)
     payment_status = db.Column(db.String(50), nullable=False, default="Pending")
@@ -124,7 +124,7 @@ class OrderItem(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
-    product_variant_id = db.Column(db.Integer, db.ForeignKey('product_variants.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)  # Add this line
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     size = db.Column(db.String(20), nullable=False)
@@ -134,13 +134,15 @@ class OrderItem(db.Model):
     badge = db.Column(db.String(50), nullable=True)
     font_type = db.Column(db.String(50), nullable=True)
 
-    product_variant = db.relationship('ProductVariant', backref='order_items')
+    
+
+    
 
     def to_dict(self):
         return {
             "id": self.id,
             "order_id": self.order_id,
-            "product_variant_id": self.product_variant_id,
+            "product_id": self.product_id,  # Include product_id
             "quantity": self.quantity,
             "unit_price": self.unit_price,
             "size": self.size,
@@ -148,6 +150,6 @@ class OrderItem(db.Model):
             "custom_name": self.custom_name,
             "custom_number": self.custom_number,
             "badge": self.badge,
-            "font_type": self.font_type
+            "font_type": self.font_type,
+            "product": self.product.to_dict() if self.product else None  # Include product details
         }
-

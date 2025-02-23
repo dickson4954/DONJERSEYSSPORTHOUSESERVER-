@@ -391,7 +391,6 @@ def get_orders():
             try:
                 order_items = [{
                     "id": item.id,
-                    "product_variant_id": item.product_variant_id,
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,
                     "size": item.size,
@@ -421,26 +420,37 @@ def get_orders():
     except Exception as e:
         current_app.logger.error(f"Error fetching orders: {str(e)}")
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
-
-
 # GET a single order by ID
 @product_bp.route('/orders/<int:id>', methods=['GET'])
 def get_order_by_id(id):
+    # Fetch the order by ID or return a 404 error if not found
     order = Order.query.get_or_404(id)
 
-    order_items = [{
-        "id": item.id,
-        "product_variant_id": item.product_variant_id,
-        "quantity": item.quantity,
-        "unit_price": item.unit_price,
-        "size": item.size,
-        "edition": item.edition,
-        "custom_name": item.custom_name,
-        "custom_number": item.custom_number,
-        "badge": item.badge,
-        "font_type": item.font_type
-    } for item in order.items]
+    # Fetch order items with product details
+    order_items = []
+    for item in order.items:
+        # Fetch the associated product for the current order item
+        product = Product.query.get(item.product_id)
+        
+        # Build the order item dictionary with product details
+        order_item_data = {
+            "id": item.id,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "size": item.size,
+            "edition": item.edition,
+            "custom_name": item.custom_name,
+            "custom_number": item.custom_number,
+            "badge": item.badge,
+            "font_type": item.font_type,
+            "product": {
+                "name": product.name if product else 'N/A',  # Include product name
+                "description": product.description if product else 'N/A'  # Include product description
+            }
+        }
+        order_items.append(order_item_data)
 
+    # Build the order data dictionary
     order_data = {
         "id": order.id,
         "user_id": order.user_id,
@@ -451,7 +461,7 @@ def get_order_by_id(id):
         "total_price": order.total_price,
         "payment_status": order.payment_status,
         "created_at": order.created_at.isoformat(),
-        "items": order_items
+        "items": order_items  # Include order items with product details
     }
 
     return jsonify(order_data)
@@ -459,42 +469,41 @@ def get_order_by_id(id):
 @product_bp.route('/orders', methods=['POST'])
 def create_order():
     try:
-        # Parse incoming JSON request
         data = request.json
-        print("Received Order Data:", data)  # Debugging log
+        print("Received Order Data:", data)
 
         if not data:
+            print("Error: No data received.")
             return jsonify({'success': False, 'message': 'No data received.'}), 400
 
-        # Extract cart and shipping details
         cart = data.get('cart', [])
         shipping_details = data.get('shipping_details', {})
         total_price = data.get('total_price', 0)
 
-        # Debugging logs
-        print("Shipping Details:", shipping_details)
-        print("Cart:", cart)
-
-        # Validate required fields
         if not cart or not shipping_details:
+            print("Error: Missing cart or shipping details.")
             return jsonify({'success': False, 'message': 'Cart or shipping details are missing.'}), 400
 
-        # Validate cart items
-        for item in cart:
-            if not all(k in item for k in ('name', 'quantity', 'price')):
-                return jsonify({'success': False, 'message': 'Each cart item must include name, quantity, and price.'}), 400
-
-        # Validate shipping details
+        # Validate required fields in shipping_details
         required_shipping_fields = ['name', 'phone', 'location', 'region']
         missing_fields = [field for field in required_shipping_fields if field not in shipping_details]
         if missing_fields:
+            print(f"Error: Missing shipping fields: {missing_fields}")
             return jsonify({'success': False, 'message': f'Missing shipping fields: {", ".join(missing_fields)}'}), 400
 
-        # Validate total_price
+        # Check total_price validity
         if not isinstance(total_price, (int, float)) or total_price <= 0:
+            print("Error: Invalid total_price.")
             return jsonify({'success': False, 'message': 'Invalid total_price. It must be a positive number.'}), 400
 
-        # Create the order
+        # Validate cart items
+        for item in cart:
+            if 'quantity' not in item or 'price' not in item:
+                print(f"Error: Missing quantity or price in cart item: {item}")
+                return jsonify({'success': False, 'message': 'Each cart item must include quantity and price.'}), 400
+
+        # If everything is correct, proceed to create order
+        print("Creating order...")
         order = Order(
             user_id=None,
             name=shipping_details['name'],
@@ -509,31 +518,32 @@ def create_order():
         db.session.commit()  # Commit to get the order ID
 
         # Create order items
-        order_items = []
         for item in cart:
+            print(f"Processing item: {item.get('name', 'Unnamed Item')}")
             order_item = OrderItem(
-                order_id=order.id,
-                product_name=item['name'],
+                order_id=order.id,  # Link to the order
                 quantity=item['quantity'],
                 unit_price=item['price'],
                 size=item.get('size', 'N/A'),
                 edition=item.get('edition', 'N/A'),
                 custom_name=item.get('customName', ''),
-                custom_number=item.get('customNumber', ''),
+                custom_number=item.get('customNumber', None) if item.get('customNumber') else None,  # Convert empty string to None
                 badge=item.get('badge', ''),
                 font_type=item.get('fontType', '')
             )
-            order_items.append(order_item)
+            db.session.add(order_item)
 
-        db.session.bulk_save_objects(order_items)
-        db.session.commit()
+        db.session.commit()  # Commit the order items
 
+        print("Order created successfully:", order.id)
         return jsonify({'success': True, 'order_id': order.id}), 201
 
     except Exception as e:
         print("Error creating order:", str(e))  # Debugging log
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
+
+# DELETE an order
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
 def delete_order(order_id):
     order = Order.query.get(order_id)
