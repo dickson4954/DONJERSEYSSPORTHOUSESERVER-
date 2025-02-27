@@ -6,6 +6,7 @@ from datetime import datetime
 
 def seed_data():
     # Clear existing data to avoid foreign key violations
+    print("Clearing existing data...")
     db.session.query(OrderItem).delete()
     db.session.query(Order).delete()
     db.session.query(ProductVariant).delete()
@@ -13,8 +14,10 @@ def seed_data():
     db.session.query(Category).delete()
     db.session.query(User).delete()
     db.session.commit()
+    print("Existing data cleared.")
 
     # Create admin and regular users
+    print("Creating users...")
     users = [
         User(username="admin", email="admin@gmail.com", password_hash=generate_password_hash("admin123"), is_admin=True),
         User(username="john_doe", email="john@gmail.com", password_hash=generate_password_hash("password")),
@@ -22,6 +25,7 @@ def seed_data():
     ]
     db.session.bulk_save_objects(users)
     db.session.commit()
+    print("Users created.")
 
     # Fetch actual user IDs
     admin_user = User.query.filter_by(username="admin").first()
@@ -29,6 +33,7 @@ def seed_data():
     jane_user = User.query.filter_by(username="jane_doe").first()
 
     # Add categories
+    print("Creating categories...")
     categories = [
         Category(name="Jerseys"),
         Category(name="Sportswear"),
@@ -36,6 +41,7 @@ def seed_data():
     ]
     db.session.bulk_save_objects(categories)
     db.session.commit()
+    print("Categories created.")
 
     # Fetch category IDs
     jerseys_category = Category.query.filter_by(name="Jerseys").first()
@@ -43,6 +49,7 @@ def seed_data():
     gym_category = Category.query.filter_by(name="Gym Equipment").first()
 
     # Add products
+    print("Creating products...")
     products = [
         Product(name="Arsenal Home Jersey 2024", description="Latest Arsenal home jersey.", price=1500, category_id=jerseys_category.id, image_url="https://i1.adis.ws/i/ArsenalDirect/mit6141_f?&$plpImages$"),
         Product(name="Running Shoes", description="Comfortable running shoes.", price=2000, category_id=sportswear_category.id, image_url="https://cdn.thewirecutter.com/wp-content/media/2023/09/running-shoes-2048px-5960.jpg", size_type="number"),
@@ -51,13 +58,16 @@ def seed_data():
     ]
     db.session.bulk_save_objects(products)
     db.session.commit()
+    print("Products created.")
 
     # Fetch product IDs
     arsenal_jersey = Product.query.filter_by(name="Arsenal Home Jersey 2024").first()
     running_shoes = Product.query.filter_by(name="Running Shoes").first()
     yoga_pants = Product.query.filter_by(name="Yoga Pants").first()
+    treadmill = Product.query.filter_by(name="Treadmill").first()
 
     # Add product variants
+    print("Creating product variants...")
     product_variants = [
         ProductVariant(product_id=arsenal_jersey.id, size="L", edition="Fan Edition", stock=50),
         ProductVariant(product_id=arsenal_jersey.id, size="XL", edition="Player Edition", stock=30),
@@ -65,28 +75,34 @@ def seed_data():
         ProductVariant(product_id=running_shoes.id, size="42", edition="Standard", stock=200),
         ProductVariant(product_id=running_shoes.id, size="43", edition="Standard", stock=150),
         ProductVariant(product_id=running_shoes.id, size="44", edition="Deluxe", stock=100),
+        ProductVariant(product_id=treadmill.id, size="Standard", edition="Basic", stock=10),
     ]
     db.session.bulk_save_objects(product_variants)
     db.session.commit()
+    print("Product variants created.")
 
     # Fetch product variant IDs
     jersey_variant = ProductVariant.query.filter_by(product_id=arsenal_jersey.id, size="L").first()
     shoes_variant = ProductVariant.query.filter_by(product_id=running_shoes.id, size="42").first()
     yoga_variant = ProductVariant.query.filter_by(product_id=yoga_pants.id, size="M").first()
+    treadmill_variant = ProductVariant.query.filter_by(product_id=treadmill.id, size="Standard").first()
 
     # Create sample orders with correct user IDs
+    print("Creating orders...")
     orders = [
         Order(user_id=john_user.id, name="John Doe", phone="1234567890", location="123 Main St", region="Nairobi", id_number="1234567890", total_price=3000.0, created_at=datetime.utcnow()),
         Order(user_id=jane_user.id, name="Jane Doe", phone="0987654321", location="456 Elm St", region="Mombasa", id_number="0987654321", total_price=1500.0, created_at=datetime.utcnow()),
     ]
     db.session.bulk_save_objects(orders)
     db.session.commit()
+    print("Orders created.")
 
     # Fetch order IDs dynamically
     order1 = Order.query.filter_by(user_id=john_user.id).first()
     order2 = Order.query.filter_by(user_id=jane_user.id).first()
 
     # Add order items with product_id
+    print("Creating order items...")
     order_items = [
         OrderItem(order_id=order1.id, product_id=arsenal_jersey.id, quantity=2, unit_price=1500, size="L", edition="Fan Edition"),
         OrderItem(order_id=order1.id, product_id=running_shoes.id, quantity=1, unit_price=2000, size="42", edition="Standard"),
@@ -94,8 +110,10 @@ def seed_data():
     ]
     db.session.bulk_save_objects(order_items)
     db.session.commit()
+    print("Order items created.")
 
     # Update the stock after order item creation
+    print("Updating stock...")
     for order_item in order_items:
         product_variant = ProductVariant.query.filter_by(
             product_id=order_item.product_id,
@@ -104,10 +122,14 @@ def seed_data():
         ).first()
         
         if product_variant:
-            product_variant.stock -= order_item.quantity
+            if product_variant.stock >= order_item.quantity:
+                product_variant.stock -= order_item.quantity
+            else:
+                print(f"Warning: Not enough stock for product {order_item.product_id}, size {order_item.size}, edition {order_item.edition}. Skipping stock update.")
     db.session.commit()
+    print("Stock updated.")
 
-    print("Database seeded and stock updated successfully!")
+    print("Database seeded successfully!")
 
 if __name__ == "__main__":
     app = create_app()
