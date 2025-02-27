@@ -125,6 +125,32 @@ def get_product(id):
         "editions": editions  # Fixed editions extraction
     })
 
+@app.route('/products/<int:product_id>/update-stock', methods=['POST'])
+def update_stock(product_id):
+    data = request.json
+    size = data.get('size')
+    edition = data.get('edition')
+    quantity = data.get('quantity')
+
+    # Find the variant by product_id, size, and edition
+    variant = ProductVariant.query.filter_by(
+        product_id=product_id,
+        size=size,
+        edition=edition
+    ).first()
+
+    if not variant:
+        return jsonify({"error": "Variant not found"}), 404
+
+    if variant.stock < quantity:
+        return jsonify({"error": "Not enough stock"}), 400
+
+    # Update the stock
+    variant.stock -= quantity
+    db.session.commit()
+
+    return jsonify({"success": True})
+
 # POST a new product with variants
 @product_bp.route('/products', methods=['POST'])
 def add_product():
@@ -466,91 +492,80 @@ def get_order_by_id(id):
 
     return jsonify(order_data)
 
-@product_bp.route('/orders', methods=['POST'])
+@app.route('/orders', methods=['POST'])
 def create_order():
-    try:
-        data = request.json
-        print("Received Order Data:", data)
+    data = request.json
+    cart = data.get('cart', [])
+    shipping_details = data.get('shipping_details', {})
+    total_price = data.get('total_price', 0)
 
-        if not data:
-            print("Error: No data received.")
-            return jsonify({'success': False, 'message': 'No data received.'}), 400
+    # Validate required fields
+    required_fields = ['name', 'phone', 'location', 'region']
+    missing_fields = [field for field in required_fields if field not in shipping_details]
+    if missing_fields:
+        return jsonify({"error": f"Missing shipping fields: {', '.join(missing_fields)}"}), 400
 
-        cart = data.get('cart', [])
-        shipping_details = data.get('shipping_details', {})
-        total_price = data.get('total_price', 0)
+    # Validate cart items
+    for item in cart:
+        if not all(k in item for k in ('name', 'quantity', 'size', 'edition', 'price')):
+            return jsonify({"error": "Each cart item must include name, quantity, size, edition, and price."}), 400
 
-        if not cart or not shipping_details:
-            print("Error: Missing cart or shipping details.")
-            return jsonify({'success': False, 'message': 'Cart or shipping details are missing.'}), 400
+    # Create the order
+    order = Order(
+        user_id=None,
+        name=shipping_details['name'],
+        phone=shipping_details['phone'],
+        location=shipping_details['location'],
+        region=shipping_details['region'],
+        total_price=total_price,
+        payment_status='Pending'
+    )
+    db.session.add(order)
+    db.session.commit()  # Commit to get the order ID
 
-        # Validate required fields in shipping_details
-        required_shipping_fields = ['name', 'phone', 'location', 'region']
-        missing_fields = [field for field in required_shipping_fields if field not in shipping_details]
-        if missing_fields:
-            print(f"Error: Missing shipping fields: {missing_fields}")
-            return jsonify({'success': False, 'message': f'Missing shipping fields: {", ".join(missing_fields)}'}), 400
+    # Create order items and update stock
+    for item in cart:
+        # Fetch the product variant
+        variant = ProductVariant.query.filter_by(
+            product_id=item.get('product_id'),
+            size=item.get('size'),
+            edition=item.get('edition')
+        ).first()
 
-        # Check total_price validity
-        if not isinstance(total_price, (int, float)) or total_price <= 0:
-            print("Error: Invalid total_price.")
-            return jsonify({'success': False, 'message': 'Invalid total_price. It must be a positive number.'}), 400
+        if not variant:
+            db.session.rollback()
+            return jsonify({"error": f"Variant not found for product {item.get('name')}"}), 404
 
-        # Validate cart items
-        for item in cart:
-            if 'quantity' not in item or 'price' not in item or 'name' not in item:
-                print(f"Error: Missing quantity, price, or name in cart item: {item}")
-                return jsonify({'success': False, 'message': 'Each cart item must include quantity, price, and name.'}), 400
+        if variant.stock < item.get('quantity'):
+            db.session.rollback()
+            return jsonify({"error": f"Not enough stock for {item.get('name')} (Size: {item.get('size')}, Edition: {item.get('edition')})"}), 400
 
-        # If everything is correct, proceed to create order
-        print("Creating order...")
-        order = Order(
-            user_id=None,
-            name=shipping_details['name'],
-            phone=shipping_details['phone'],
-            location=shipping_details['location'],
-            region=shipping_details['region'],
-            total_price=total_price,
-            payment_status='Pending'
+        # Update the stock
+        variant.stock -= item.get('quantity')
+
+        # Create the order item
+        order_item = OrderItem(
+            order_id=order.id,
+            product_id=variant.product_id,
+            quantity=item.get('quantity'),
+            unit_price=item.get('price'),
+            size=item.get('size'),
+            edition=item.get('edition'),
+            custom_name=item.get('customName', ''),
+            custom_number=item.get('customNumber', None),
+            badge=item.get('badge', ''),
+            font_type=item.get('fontType', '')
         )
+        db.session.add(order_item)
 
-        db.session.add(order)
-        db.session.commit()  # Commit to get the order ID
+    db.session.commit()
 
-        # Create order items
-        for item in cart:
-            print(f"Processing item: {item.get('name', 'Unnamed Item')}")
-
-            # Fetch the product by name to get the product_id
-            product = Product.query.filter_by(name=item['name']).first()
-            if not product:
-                print(f"Error: Product '{item['name']}' not found.")
-                db.session.rollback()
-                return jsonify({'success': False, 'message': f"Product '{item['name']}' not found."}), 404
-
-            order_item = OrderItem(
-                order_id=order.id,  # Link to the order
-                product_id=product.id,  # Include the product_id
-                quantity=item['quantity'],
-                unit_price=item['price'],
-                size=item.get('size', 'N/A'),
-                edition=item.get('edition', 'N/A'),
-                custom_name=item.get('customName', ''),
-                custom_number=item.get('customNumber', None) if item.get('customNumber') else None,  # Convert empty string to None
-                badge=item.get('badge', ''),
-                font_type=item.get('fontType', '')
-            )
-            db.session.add(order_item)
-
-        db.session.commit()  # Commit the order items
-
-        print("Order created successfully:", order.id)
-        return jsonify({'success': True, 'order_id': order.id}), 201
-
-    except Exception as e:
+    return jsonify({"success": True, "order_id": order.id})
+ except Exception as e:
         print("Error creating order:", str(e))  # Debugging log
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
+
 
 # DELETE an order
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
