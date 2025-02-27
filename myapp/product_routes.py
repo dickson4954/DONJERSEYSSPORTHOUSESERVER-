@@ -491,81 +491,81 @@ def get_order_by_id(id):
     }
 
     return jsonify(order_data)
-
 @app.route('/orders', methods=['POST'])
 def create_order():
-    data = request.json
-    cart = data.get('cart', [])
-    shipping_details = data.get('shipping_details', {})
-    total_price = data.get('total_price', 0)
+    try:
+        data = request.json
+        cart = data.get('cart', [])
+        shipping_details = data.get('shipping_details', {})
+        total_price = data.get('total_price', 0)
 
-    # Validate required fields
-    required_fields = ['name', 'phone', 'location', 'region']
-    missing_fields = [field for field in required_fields if field not in shipping_details]
-    if missing_fields:
-        return jsonify({"error": f"Missing shipping fields: {', '.join(missing_fields)}"}), 400
+        # Validate required fields
+        required_fields = ['name', 'phone', 'location', 'region']
+        missing_fields = [field for field in required_fields if field not in shipping_details]
+        if missing_fields:
+            return jsonify({"error": f"Missing shipping fields: {', '.join(missing_fields)}"}), 400
 
-    # Validate cart items
-    for item in cart:
-        if not all(k in item for k in ('name', 'quantity', 'size', 'edition', 'price')):
-            return jsonify({"error": "Each cart item must include name, quantity, size, edition, and price."}), 400
+        # Validate cart items
+        for item in cart:
+            if not all(k in item for k in ('name', 'quantity', 'size', 'edition', 'price')):
+                return jsonify({"error": "Each cart item must include name, quantity, size, edition, and price."}), 400
 
-    # Create the order
-    order = Order(
-        user_id=None,
-        name=shipping_details['name'],
-        phone=shipping_details['phone'],
-        location=shipping_details['location'],
-        region=shipping_details['region'],
-        total_price=total_price,
-        payment_status='Pending'
-    )
-    db.session.add(order)
-    db.session.commit()  # Commit to get the order ID
-
-    # Create order items and update stock
-    for item in cart:
-        # Fetch the product variant
-        variant = ProductVariant.query.filter_by(
-            product_id=item.get('product_id'),
-            size=item.get('size'),
-            edition=item.get('edition')
-        ).first()
-
-        if not variant:
-            db.session.rollback()
-            return jsonify({"error": f"Variant not found for product {item.get('name')}"}), 404
-
-        if variant.stock < item.get('quantity'):
-            db.session.rollback()
-            return jsonify({"error": f"Not enough stock for {item.get('name')} (Size: {item.get('size')}, Edition: {item.get('edition')})"}), 400
-
-        # Update the stock
-        variant.stock -= item.get('quantity')
-
-        # Create the order item
-        order_item = OrderItem(
-            order_id=order.id,
-            product_id=variant.product_id,
-            quantity=item.get('quantity'),
-            unit_price=item.get('price'),
-            size=item.get('size'),
-            edition=item.get('edition'),
-            custom_name=item.get('customName', ''),
-            custom_number=item.get('customNumber', None),
-            badge=item.get('badge', ''),
-            font_type=item.get('fontType', '')
+        # Create the order
+        order = Order(
+            user_id=None,
+            name=shipping_details['name'],
+            phone=shipping_details['phone'],
+            location=shipping_details['location'],
+            region=shipping_details['region'],
+            total_price=total_price,
+            payment_status='Pending'
         )
-        db.session.add(order_item)
+        db.session.add(order)
+        db.session.commit()  # Commit to get the order ID
 
-    db.session.commit()
+        # Create order items and update stock
+        for item in cart:
+            # Fetch the product variant
+            variant = ProductVariant.query.filter_by(
+                product_id=item.get('product_id'),
+                size=item.get('size'),
+                edition=item.get('edition')
+            ).first()
 
-    return jsonify({"success": True, "order_id": order.id})
- except Exception as e:
+            if not variant:
+                db.session.rollback()
+                return jsonify({"error": f"Variant not found for product {item.get('name')}"}), 404
+
+            if variant.stock < item.get('quantity'):
+                db.session.rollback()
+                return jsonify({"error": f"Not enough stock for {item.get('name')} (Size: {item.get('size')}, Edition: {item.get('edition')})"}), 400
+
+            # Update the stock
+            variant.stock -= item.get('quantity')
+
+            # Create the order item
+            order_item = OrderItem(
+                order_id=order.id,
+                product_id=variant.product_id,
+                quantity=item.get('quantity'),
+                unit_price=item.get('price'),
+                size=item.get('size'),
+                edition=item.get('edition'),
+                custom_name=item.get('customName', ''),
+                custom_number=item.get('customNumber', None),
+                badge=item.get('badge', ''),
+                font_type=item.get('fontType', '')
+            )
+            db.session.add(order_item)
+
+        db.session.commit()
+
+        return jsonify({"success": True, "order_id": order.id})
+
+    except Exception as e:
         print("Error creating order:", str(e))  # Debugging log
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Internal server error.'}), 500
-
 
 # DELETE an order
 @app.route('/orders/<int:order_id>', methods=['DELETE'])
