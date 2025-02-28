@@ -87,21 +87,20 @@ def get_products():
 
 @product_bp.route('/products/<int:id>', methods=['GET'])
 def get_product(id):
-    # Fetch the product by ID or return 404 if not found
     product = Product.query.get_or_404(id)
     
     # Extract all variants for this product
     variants = [{
         "id": variant.id,
         "size": variant.size,
-        "edition": variant.edition,
-        "stock": variant.stock
+        "edition": variant.edition.split(','),  # Split editions into a list
     } for variant in product.variants]
 
-    # Extract unique editions
-    editions = list({variant.edition for variant in product.variants if variant.edition})
+    # Extract unique sizes
+    sizes = list({variant.size for variant in product.variants})
+    editions = list({edition.strip() for variant in product.variants for edition in variant.edition.split(',')})
 
-    # Return the product details along with the variants and editions
+
     return jsonify({
         "id": product.id,
         "name": product.name,
@@ -114,7 +113,7 @@ def get_product(id):
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
         "variants": variants,
-        "editions": editions
+        "sizes": sizes  # Return sizes as a list
     })
 
 
@@ -122,14 +121,12 @@ def get_product(id):
 def update_stock(product_id):
     data = request.json
     size = data.get('size')
-    edition = data.get('edition')
     quantity = data.get('quantity')
 
-    # Find the variant by product_id, size, and edition
+    # Find the variant by product_id and size (ignore edition)
     variant = ProductVariant.query.filter_by(
         product_id=product_id,
-        size=size,
-        edition=edition
+        size=size
     ).first()
 
     if not variant:
@@ -160,8 +157,8 @@ def add_product():
         return jsonify({"error": "'variants' must be a non-empty list."}), 400
 
     for variant in variants:
-        if not all(k in variant for k in ('size', 'edition', 'stock')):
-            return jsonify({"error": "Each variant must include 'size', 'edition', and 'stock'."}), 400
+        if not all(k in variant for k in ('size', 'stock')):
+            return jsonify({"error": "Each variant must include 'size' and 'stock'."}), 400
         if not isinstance(variant['stock'], int) or variant['stock'] < 0:
             return jsonify({"error": "Variant 'stock' must be a non-negative integer."}), 400
 
@@ -201,8 +198,7 @@ def add_product():
             # Check if the variant already exists
             existing_variant = ProductVariant.query.filter_by(
                 product_id=new_product.id,
-                size=size,
-                edition=variant['edition']
+                size=size
             ).first()
 
             if existing_variant:
@@ -213,7 +209,7 @@ def add_product():
                 product_variant = ProductVariant(
                     product_id=new_product.id,
                     size=size,
-                    edition=variant['edition'],
+                    edition=variant.get('edition', ''),  # Optional: Include edition if needed
                     stock=variant['stock'],
                     created_at=datetime.utcnow()
                 )
@@ -563,7 +559,7 @@ def create_order():
                 db.session.rollback()
                 return jsonify({'success': False, 'message': f"Product '{item['name']}' not found."}), 404
 
-            # Fetch the correct variant based on size
+            # Fetch the correct variant based on size (ignore edition)
             variant = ProductVariant.query.filter_by(product_id=product.id, size=item.get('size')).first()
             if not variant:
                 print(f"Error: Product variant for size '{item.get('size')}' not found.")
@@ -587,7 +583,7 @@ def create_order():
                 quantity=item['quantity'],
                 unit_price=item['price'],
                 size=item.get('size', 'N/A'),
-                edition=item.get('edition', 'N/A'),
+                edition=item.get('edition', 'N/A'),  # Optional: Include edition if needed
                 custom_name=item.get('customName', ''),
                 custom_number=item.get('customNumber', None) if item.get('customNumber') else None,  # Convert empty string to None
                 badge=item.get('badge', ''),
