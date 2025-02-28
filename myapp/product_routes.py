@@ -85,6 +85,38 @@ def get_products():
 
     return jsonify(products_data)
 
+@product_bp.route('/products/<int:id>', methods=['GET'])
+def get_product(id):
+    # Fetch the product by ID or return 404 if not found
+    product = Product.query.get_or_404(id)
+    
+    # Extract all variants for this product
+    variants = [{
+        "id": variant.id,
+        "size": variant.size,
+        "edition": variant.edition,
+        "stock": variant.stock
+    } for variant in product.variants]
+
+    # Extract unique editions
+    editions = list({variant.edition for variant in product.variants if variant.edition})
+
+    # Return the product details along with the variants and editions
+    return jsonify({
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+        "price": product.price,
+        "category": {
+            "id": product.category.id,
+            "name": product.category.name
+        },
+        "image_url": product.image_url,
+        "created_at": product.created_at.isoformat(),
+        "variants": variants,
+        "editions": editions
+    })
+
 
 @app.route('/products/<int:product_id>/update-stock', methods=['POST'])
 def update_stock(product_id):
@@ -159,45 +191,40 @@ def add_product():
     db.session.add(new_product)
     db.session.commit()  # Commit to get the product ID
 
-    product_variants = []  # ✅ Create an empty list
-
+    # Add variants
     for variant in variants:
         sizes = variant['size']
         if isinstance(sizes, str):  
-           sizes = [size.strip() for size in sizes.split(',')]  # ✅ Split properly
+            sizes = [size.strip() for size in sizes.split(',')]  # Split sizes
 
-    for size in sizes:
-        print(f"Adding variant - Product ID: {new_product.id}, Size: {size}, Edition: {variant['edition']}, Stock: {variant['stock']}")  # Debugging
+        for size in sizes:
+            # Check if the variant already exists
+            existing_variant = ProductVariant.query.filter_by(
+                product_id=new_product.id,
+                size=size,
+                edition=variant['edition']
+            ).first()
 
-        # Check if the variant already exists
-    existing_variant = ProductVariant.query.filter_by(
-       product_id=new_product.id,
-       size=size,
-       edition=variant['edition']
-    ).first()
+            if existing_variant:
+                # If exists, update stock instead of adding a duplicate
+                existing_variant.stock += variant['stock']
+            else:
+                # If not exists, create a new variant
+                product_variant = ProductVariant(
+                    product_id=new_product.id,
+                    size=size,
+                    edition=variant['edition'],
+                    stock=variant['stock'],
+                    created_at=datetime.utcnow()
+                )
+                db.session.add(product_variant)
 
-    if existing_variant:
-    # If exists, update stock instead of adding a duplicate
-       existing_variant.stock += variant['stock']
-    else:
-    # If not exists, create a new variant
-     product_variant = ProductVariant(
-        product_id=new_product.id,
-        size=size,
-        edition=variant['edition'],
-        stock=variant['stock'],
-        created_at=datetime.utcnow()
-    )
-    db.session.add(product_variant)
-
-
-
+    db.session.commit()
 
     return jsonify({
         "message": "Product added successfully!",
         "product_id": new_product.id
     }), 201
-
 # PUT (update) an existing product and its variants
 @product_bp.route('/products/<int:id>', methods=['PUT'])
 def update_product(id):
