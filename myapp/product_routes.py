@@ -93,13 +93,12 @@ def get_product(id):
     variants = [{
         "id": variant.id,
         "size": variant.size,
-        "edition": variant.edition.split(','),  # Split editions into a list
+        "edition": variant.edition,
+        "stock": variant.stock
     } for variant in product.variants]
 
-    # Extract unique sizes
-    sizes = list({variant.size for variant in product.variants})
-    editions = list({edition.strip() for variant in product.variants for edition in variant.edition.split(',')})
-
+    # Extract unique editions
+    editions = list({variant.edition for variant in product.variants if variant.edition})
 
     return jsonify({
         "id": product.id,
@@ -113,9 +112,8 @@ def get_product(id):
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
         "variants": variants,
-        "sizes": sizes  # Return sizes as a list
+        "editions": editions  # Ensure editions is always a list
     })
-
 
 @app.route('/products/<int:product_id>/update-stock', methods=['POST'])
 def update_stock(product_id):
