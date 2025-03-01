@@ -558,7 +558,9 @@ def create_order():
                 return jsonify({'success': False, 'message': f"Product '{item['name']}' not found."}), 404
 
             # Fetch the correct variant based on size (ignore edition)
-            variant = ProductVariant.query.filter_by(product_id=product.id, size=item.get('size')).first()
+            variant = ProductVariant.query.filter_by(
+                product_id=product.id,
+                size=item.get('size')).first()
             if not variant:
                 print(f"Error: Product variant for size '{item.get('size')}' not found.")
                 db.session.rollback()
