@@ -44,12 +44,11 @@ def add_cors_headers(response):
 product_bp = Blueprint('products', __name__)
 
 
-
-
+# GET all products with sorting and stock status
 @product_bp.route('/products', methods=['GET'])
 def get_products():
-    limit = request.args.get('limit', type=int)  
-    sort = request.args.get('sort', default='created_at_desc') 
+    limit = request.args.get('limit', type=int)
+    sort = request.args.get('sort', default='created_at_desc')
     sort_column = Product.created_at.asc() if sort == 'created_at_asc' else Product.created_at.desc()
 
     query = Product.query.order_by(sort_column)
@@ -57,24 +56,22 @@ def get_products():
         query = query.limit(limit)
 
     products = query.all()
-
     products_data = []
-    for product in products:
-        variants = [{
-            "id": variant.id,
-            "size": variant.size,
-            "edition": variant.edition,
-            "stock": variant.stock
-        } for variant in product.variants]
 
-        # ✅ Fixed: Only mark as sold out if there are variants AND all sizes are out of stock
-        # Group variants by size and check if all sizes are out of stock
-        size_stock = {}
+    for product in products:
+        variants = [
+            {
+                "id": variant.id,
+                "size": variant.size,
+                "edition": variant.edition or "",  # Ensure edition is always a string
+                "stock": variant.stock
+            }
+            for variant in product.variants
+        ]
+
+        size_stock = {variant["size"]: 0 for variant in variants}
         for variant in variants:
-            size = variant["size"]
-            if size not in size_stock:
-                size_stock[size] = 0
-            size_stock[size] += variant["stock"]
+            size_stock[variant["size"]] += variant["stock"]
 
         is_sold_out = len(size_stock) > 0 and all(stock == 0 for stock in size_stock.values())
 
@@ -83,37 +80,43 @@ def get_products():
             "name": product.name,
             "description": product.description,
             "price": product.price,
-            "category_id": product.category_id, 
-            "category": product.category.name,  
+            "category": {
+                "id": product.category.id,
+                "name": product.category.name
+            },
             "image_url": product.image_url,
             "created_at": product.created_at.isoformat(),
             "variants": variants,
-            "sold_out": is_sold_out  # ✅ Corrected logic
+            "sold_out": is_sold_out
         })
 
     return jsonify(products_data)
+
+# GET a single product
 @product_bp.route('/products/<int:id>', methods=['GET'])
 def get_product(id):
     product = Product.query.get_or_404(id)
-    
-    # Extract all variants for this product
-    variants = [{
-        "id": variant.id,
-        "size": variant.size,
-        "edition": variant.edition,
-        "stock": variant.stock
-    } for variant in product.variants]
 
-    # Extract unique editions
-    editions = list({variant.edition for variant in product.variants if variant.edition})
+    variants = [
+        {
+            "id": variant.id,
+            "size": variant.size,
+            "edition": variant.edition or "",  # Ensure edition is always a string
+            "stock": variant.stock
+        }
+        for variant in product.variants
+    ]
 
-    # ✅ Fixed: Only mark as sold out if all sizes are out of stock
-    size_stock = {}
+    editions = list(set(
+    edition.strip()
+    for variant in product.variants if variant.edition
+    for edition in variant.edition.split(",")  # Ensure it's correctly split
+    ))
+
+
+    size_stock = {variant["size"]: 0 for variant in variants}
     for variant in variants:
-        size = variant["size"]
-        if size not in size_stock:
-            size_stock[size] = 0
-        size_stock[size] += variant["stock"]
+        size_stock[variant["size"]] += variant["stock"]
 
     is_sold_out = len(size_stock) > 0 and all(stock == 0 for stock in size_stock.values())
 
@@ -129,70 +132,45 @@ def get_product(id):
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
         "variants": variants,
-        "editions": editions,  # Ensure editions is always a list
-        "sold_out": is_sold_out  # ✅ Corrected logic
+        "editions": editions,
+        "sold_out": is_sold_out
     })
 
-@app.route('/products/<int:product_id>/update-stock', methods=['POST'])
+# UPDATE product stock (decrease after purchase)
+@product_bp.route('/products/<int:product_id>/update-stock', methods=['POST'])
 def update_stock(product_id):
     data = request.json
     size = data.get('size')
     quantity = data.get('quantity')
 
-    # Find the variant by product_id and size (ignore edition)
-    variant = ProductVariant.query.filter_by(
-        product_id=product_id,
-        size=size
-    ).first()
-
+    variant = ProductVariant.query.filter_by(product_id=product_id, size=size).first()
     if not variant:
         return jsonify({"error": "Variant not found"}), 404
 
     if variant.stock < quantity:
         return jsonify({"error": "Not enough stock"}), 400
 
-    # Update the stock
     variant.stock -= quantity
     db.session.commit()
 
     return jsonify({"success": True})
 
+# ADD a new product
 @product_bp.route('/products', methods=['POST'])
 def add_product():
     data = request.json
-
-    # Validate required fields
     required_fields = ['name', 'description', 'price', 'category_id', 'variants']
+    
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"'{field}' is required."}), 400
 
-    # Validate variants
     variants = data.get('variants', [])
     if not isinstance(variants, list) or not variants:
         return jsonify({"error": "'variants' must be a non-empty list."}), 400
 
-    for variant in variants:
-        if not all(k in variant for k in ('size', 'stock')):
-            return jsonify({"error": "Each variant must include 'size' and 'stock'."}), 400
-        if not isinstance(variant['stock'], int) or variant['stock'] < 0:
-            return jsonify({"error": "Variant 'stock' must be a non-negative integer."}), 400
-
-    # Handle image upload if image_url is not provided
     image_url = data.get('imageUrl')
-    if not image_url:
-        image = request.files.get('image')  # Use request.files for images
-        if image:
-            # Process the uploaded image
-            upload_result = upload_image(image)  # Ensure this function accepts image as parameter
-            if upload_result and 'url' in upload_result:
-                image_url = upload_result['url']
-            else:
-                return jsonify({"error": "Image upload failed."}), 500
-        else:
-            return jsonify({"error": "'imageUrl' or 'image' file is required."}), 400
-
-    # Create the product
+    
     new_product = Product(
         name=data['name'],
         description=data['description'],
@@ -202,123 +180,54 @@ def add_product():
         created_at=datetime.utcnow()
     )
     db.session.add(new_product)
-    db.session.commit()  # Commit to get the product ID
-
-    # Add variants
-    for variant in variants:
-        sizes = variant['size']
-        if isinstance(sizes, str):  
-            sizes = [size.strip() for size in sizes.split(',')]  # Split sizes
-
-        for size in sizes:
-            # Check if the variant already exists
-            existing_variant = ProductVariant.query.filter_by(
-                product_id=new_product.id,
-                size=size
-            ).first()
-
-            if existing_variant:
-                # If exists, update stock instead of adding a duplicate
-                existing_variant.stock += variant['stock']
-            else:
-                # If not exists, create a new variant
-                product_variant = ProductVariant(
-                    product_id=new_product.id,
-                    size=size,
-                    edition=variant.get('edition', ''),  # Optional: Include edition if needed
-                    stock=variant['stock'],
-                    created_at=datetime.utcnow()
-                )
-                db.session.add(product_variant)
-
     db.session.commit()
 
-    return jsonify({
-        "message": "Product added successfully!",
-        "product_id": new_product.id
-    }), 201
-# PUT (update) an existing product and its variants
+    for variant in variants:
+        editions = variant.get('edition', "").split(",")  # Split editions
+        for edition in editions:
+            new_variant = ProductVariant(
+                product_id=new_product.id,
+                size=variant['size'].strip(),
+                edition=edition.strip(),  # Store only one edition per row
+                stock=variant['stock'],
+                created_at=datetime.utcnow()    
+            )
+            db.session.add(new_variant)
+    
+    db.session.commit()
+    return jsonify({"message": "Product added successfully!", "product_id": new_product.id}), 201
+
+# UPDATE a product
 @product_bp.route('/products/<int:id>', methods=['PUT'])
 def update_product(id):
     product = Product.query.get_or_404(id)
     data = request.json
 
-    # Update product fields if provided
     product.name = data.get('name', product.name)
     product.description = data.get('description', product.description)
     product.price = data.get('price', product.price)
     product.category_id = data.get('category_id', product.category_id)
 
-    # Handle image update
-    image_url = data.get('imageUrl')
-    if not image_url:
-        image = request.files.get('image')  # Use request.files for images
-        if image:
-            # Process the uploaded image
-            upload_result = upload_image(image)  # Ensure this function accepts image as parameter
-            if upload_result and 'url' in upload_result:
-                image_url = upload_result['url']
-            else:
-                return jsonify({"error": "Image upload failed."}), 500
-        else:
-            return jsonify({"error": "'imageUrl' or 'image' file is required."}), 400
-
-    # Update the image URL
+    image_url = data.get('imageUrl', product.image_url)
     product.image_url = image_url
-
-    # Handle variants update
-    variants = data.get('variants', [])
-    if variants:
-        if not isinstance(variants, list):
-            return jsonify({"error": "'variants' must be a list."}), 400
-
-        for variant_data in variants:
-            sizes = [size.strip() for size in variant_data.get('size', '').split(',')]  # ✅ Split sizes
-            for size in sizes:
-                variant_id = variant_data.get('id')
-
-                if variant_id:
-                    # ✅ Update existing variant if it exists
-                    variant = ProductVariant.query.filter_by(
-                        id=variant_id,
-                        product_id=id
-                    ).first()
-                    if variant:
-                        variant.size = size
-                        variant.edition = variant_data.get('edition', variant.edition)
-                        variant.stock = variant_data.get('stock', variant.stock)
-                else:
-                    # ✅ Create a new variant if size does not exist
-                    new_variant = ProductVariant(
-                        product_id=id,
-                        size=size,
-                        edition=variant_data['edition'],
-                        stock=variant_data['stock'],
-                        created_at=datetime.utcnow()
-                    )
-                    db.session.add(new_variant)
-
     db.session.commit()
+
     return jsonify({"message": "Product updated successfully!"})
 
+# DELETE a product
 @product_bp.route('/products/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
-    try:
-        product = Product.query.get(product_id)
-        if not product:
-            return jsonify({"message": "Product not found"}), 404
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({"message": "Product not found"}), 404
 
-        # Delete all variants linked to this product first
-        ProductVariant.query.filter_by(product_id=product_id).delete()
+    ProductVariant.query.filter_by(product_id=product_id).delete()
+    db.session.delete(product)
+    db.session.commit()
 
-        # Now delete the product
-        db.session.delete(product)
-        db.session.commit()
+    return jsonify({"message": "Product and variants deleted successfully!"}), 200
 
-        return jsonify({"message": "Product and its variants deleted successfully!"}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+
 
 # Count products by category
 @product_bp.route('/categories', methods=['GET'])
