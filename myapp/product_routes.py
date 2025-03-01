@@ -101,24 +101,23 @@ def get_product(id):
         {
             "id": variant.id,
             "size": variant.size,
-            "edition": variant.edition or "",  # Ensure edition is always a string
+            "edition": variant.edition,
             "stock": variant.stock
         }
         for variant in product.variants
     ]
 
-    editions = list(set(
-    edition.strip()
-    for variant in product.variants if variant.edition
-    for edition in variant.edition.split(",")  # Ensure it's correctly split
-    ))
-
-
-    size_stock = {variant["size"]: 0 for variant in variants}
+    # Group variants by size and edition
+    size_stock = {}
     for variant in variants:
-        size_stock[variant["size"]] += variant["stock"]
+        if variant['size'] not in size_stock:
+            size_stock[variant['size']] = {}
+        size_stock[variant['size']][variant['edition']] = variant['stock']
 
-    is_sold_out = len(size_stock) > 0 and all(stock == 0 for stock in size_stock.values())
+    is_sold_out = len(size_stock) > 0 and all(
+        all(stock == 0 for stock in editions.values())
+        for editions in size_stock.values()
+    )
 
     return jsonify({
         "id": product.id,
@@ -132,7 +131,7 @@ def get_product(id):
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
         "variants": variants,
-        "editions": editions,
+        "size_stock": size_stock,  # Return size and edition stock information
         "sold_out": is_sold_out
     })
 
@@ -183,16 +182,17 @@ def add_product():
     db.session.commit()
 
     for variant in variants:
-        editions = variant.get('edition', "").split(",")  # Split editions
-        for edition in editions:
-            new_variant = ProductVariant(
-                product_id=new_product.id,
-                size=variant['size'].strip(),
-                edition=edition.strip(),  # Store only one edition per row
-                stock=variant['stock'],
-                created_at=datetime.utcnow()    
-            )
-            db.session.add(new_variant)
+        # Ensure each size and edition combination is stored as a separate variant
+        for size in variant['size'].split(','):
+            for edition in variant['edition'].split(','):
+                new_variant = ProductVariant(
+                    product_id=new_product.id,
+                    size=size.strip(),
+                    edition=edition.strip(),
+                    stock=variant['stock'],
+                    created_at=datetime.utcnow()    
+                )
+                db.session.add(new_variant)
     
     db.session.commit()
     return jsonify({"message": "Product added successfully!", "product_id": new_product.id}), 201
