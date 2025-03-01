@@ -67,8 +67,16 @@ def get_products():
             "stock": variant.stock
         } for variant in product.variants]
 
-        # ✅ Fixed: Only mark as sold out if there are variants AND all have 0 stock
-        is_sold_out = len(variants) > 0 and all(variant["stock"] == 0 for variant in variants)
+        # ✅ Fixed: Only mark as sold out if there are variants AND all sizes are out of stock
+        # Group variants by size and check if all sizes are out of stock
+        size_stock = {}
+        for variant in variants:
+            size = variant["size"]
+            if size not in size_stock:
+                size_stock[size] = 0
+            size_stock[size] += variant["stock"]
+
+        is_sold_out = len(size_stock) > 0 and all(stock == 0 for stock in size_stock.values())
 
         products_data.append({
             "id": product.id,
@@ -84,7 +92,6 @@ def get_products():
         })
 
     return jsonify(products_data)
-
 @product_bp.route('/products/<int:id>', methods=['GET'])
 def get_product(id):
     product = Product.query.get_or_404(id)
@@ -100,6 +107,16 @@ def get_product(id):
     # Extract unique editions
     editions = list({variant.edition for variant in product.variants if variant.edition})
 
+    # ✅ Fixed: Only mark as sold out if all sizes are out of stock
+    size_stock = {}
+    for variant in variants:
+        size = variant["size"]
+        if size not in size_stock:
+            size_stock[size] = 0
+        size_stock[size] += variant["stock"]
+
+    is_sold_out = len(size_stock) > 0 and all(stock == 0 for stock in size_stock.values())
+
     return jsonify({
         "id": product.id,
         "name": product.name,
@@ -112,7 +129,8 @@ def get_product(id):
         "image_url": product.image_url,
         "created_at": product.created_at.isoformat(),
         "variants": variants,
-        "editions": editions  # Ensure editions is always a list
+        "editions": editions,  # Ensure editions is always a list
+        "sold_out": is_sold_out  # ✅ Corrected logic
     })
 
 @app.route('/products/<int:product_id>/update-stock', methods=['POST'])
