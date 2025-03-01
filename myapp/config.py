@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     # General configurations
     SECRET_KEY = os.getenv('SECRET_KEY', '6ce880509867e095b667acbf863b5a987a647c196ed246a7')
-    SQLALCHEMY_DATABASE_URI = "postgresql://don_jersey_app_s7e9_user:dxELAVKeZSPWiUDNdI0LMdJpn3JOBbay@dpg-cut89v3qf0us739sp1ng-a.oregon-postgres.render.com/don_jersey_app_s7e9"
+    SQLALCHEMY_DATABASE_URI = "postgresql://don_jersey_user:NKF7gyorLROCAn8vZbZ2lDmgE0Cm32ZQ@dpg-cv1dpdt2ng1s738a82f0-a.oregon-postgres.render.com/don_jersey"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     CLOUDINARY_CLOUD_NAME = 'dfdqp6bdl'
