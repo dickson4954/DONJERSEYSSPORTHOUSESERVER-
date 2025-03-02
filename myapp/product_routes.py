@@ -1,6 +1,8 @@
 from flask import Flask, Blueprint, jsonify, request, abort
 from myapp.models import Product, Category, Order, OrderItem, ProductVariant, db
 from flask import current_app
+from sqlalchemy import func
+
 
 
 from .utils import upload_image
@@ -138,6 +140,8 @@ def get_product(id):
 @product_bp.route('/products/<int:product_id>/update-stock', methods=['POST'])
 def update_stock(product_id):
     data = request.json
+    print("Received Data:", data)  # Debugging log
+
     size = data.get('size')
     edition = data.get('edition')
     quantity = data.get('quantity')
@@ -145,9 +149,21 @@ def update_stock(product_id):
     if not all([size, edition, quantity]):
         return jsonify({"error": "Missing required fields: size, edition, or quantity"}), 400
 
-    variant = ProductVariant.query.filter_by(product_id=product_id, size=size, edition=edition).first()
+    # Case-insensitive and trimmed query
+    variant = ProductVariant.query.filter(
+        ProductVariant.product_id == product_id,
+        func.lower(ProductVariant.size) == func.lower(size.strip()),
+        func.lower(ProductVariant.edition) == func.lower(edition.strip())
+    ).first()
+
     if not variant:
         return jsonify({"error": "Variant not found"}), 404
+
+    print(f"Current Stock: {variant.stock}, Requested: {quantity}")  # Debugging log
+
+    # Prevent reducing stock below 0
+    if variant.stock == 0:
+        return jsonify({"error": "Stock is already 0. Cannot reduce further."}), 400
 
     if variant.stock < quantity:
         return jsonify({"error": f"Not enough stock. Available: {variant.stock}, Requested: {quantity}"}), 400
@@ -155,7 +171,7 @@ def update_stock(product_id):
     variant.stock -= quantity
     db.session.commit()
 
-    return jsonify({"success": True})
+    return jsonify({"success": True, "new_stock": variant.stock})
 
 # ADD a new product
 @product_bp.route('/products', methods=['POST'])
