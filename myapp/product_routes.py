@@ -471,7 +471,7 @@ def create_order():
         )
 
         db.session.add(order)
-        db.session.commit()  # Commit to get the order ID
+        db.session.flush()  # Commit to get the order ID
 
         # Create order items & update stock
         for item in cart:
@@ -498,19 +498,15 @@ def create_order():
                 print(f"Error: Not enough stock for {product.name} size {variant.size}")
                 db.session.rollback()
                 return jsonify({'success': False, 'message': f"Not enough stock for {product.name} size {variant.size}"}), 400
-
-            # Reduce stock
-            variant.stock -= item['quantity']
-            db.session.add(variant)  # Update stock in the database
-
+            
             # Create order item
             order_item = OrderItem(
-                order_id=order.id,  # Link to the order
-                product_id=product.id,  # Include the product_id
+                order_id=order.id,  
+                product_id=product.id,  
                 quantity=item['quantity'],
                 unit_price=item['price'],
                 size=item.get('size', 'N/A'),
-                edition=item.get('edition', 'N/A'),  # Optional: Include edition if needed
+                edition=item.get('edition', 'N/A'),  
                 custom_name=item.get('customName', ''),
                 custom_number=item.get('customNumber', None) if item.get('customNumber') else None,  # Convert empty string to None
                 badge=item.get('badge', ''),
@@ -518,7 +514,13 @@ def create_order():
             )
             db.session.add(order_item)
 
+
+            variant.stock -= ['quantity']
+            db.session.add(variant)
+
         db.session.commit()  # Commit the order items and stock update
+
+
 
         print("Order created successfully:", order.id)
         return jsonify({'success': True, 'order_id': order.id}), 201
