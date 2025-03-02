@@ -135,19 +135,22 @@ def get_product(id):
         "sold_out": is_sold_out
     })
 
-# UPDATE product stock (decrease after purchase)
 @product_bp.route('/products/<int:product_id>/update-stock', methods=['POST'])
 def update_stock(product_id):
     data = request.json
     size = data.get('size')
+    edition = data.get('edition')
     quantity = data.get('quantity')
 
-    variant = ProductVariant.query.filter_by(product_id=product_id, size=size).first()
+    if not all([size, edition, quantity]):
+        return jsonify({"error": "Missing required fields: size, edition, or quantity"}), 400
+
+    variant = ProductVariant.query.filter_by(product_id=product_id, size=size, edition=edition).first()
     if not variant:
         return jsonify({"error": "Variant not found"}), 404
 
     if variant.stock < quantity:
-        return jsonify({"error": "Not enough stock"}), 400
+        return jsonify({"error": f"Not enough stock. Available: {variant.stock}, Requested: {quantity}"}), 400
 
     variant.stock -= quantity
     db.session.commit()
